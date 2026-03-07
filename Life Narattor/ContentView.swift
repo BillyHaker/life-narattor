@@ -1,24 +1,36 @@
-//
-//  ContentView.swift
-//  Life Narattor
-//
-//  Created by Billy Ha on 3/3/2026.
-//
-
+import CoreData
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.managedObjectContext) private var context
+    private let aiService: AIService = MockAIService()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            RecordFeedScreen(context: context, aiService: aiService)
+                .tabItem {
+                    Label("记录", systemImage: "square.and.pencil")
+                }
+
+            TimelineScreen()
+                .tabItem {
+                    Label("时间线", systemImage: "clock")
+                }
+
+            ProjectsListScreen()
+                .tabItem {
+                    Label("项目", systemImage: "folder")
+                }
+
+            ReviewHomeScreen()
+                .tabItem {
+                    Label("回顾", systemImage: "sparkles")
+                }
         }
-        .padding()
     }
 }
 
 #Preview {
     ContentView()
+        .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
 }
