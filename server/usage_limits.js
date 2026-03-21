@@ -101,3 +101,83 @@ export function quotaErrorPayload(userId, requestType, amount = 1) {
     reset_date: status.date
   };
 }
+
+export function listRecentUsageEvents(limit = 200) {
+  const store = loadStore();
+  return (store.events || []).slice(-limit).reverse();
+}
+
+export function listRecentUsageEventsForUser(userId, limit = 100) {
+  return listRecentUsageEvents(limit * 5).filter((entry) => entry.user_id === userId).slice(0, limit);
+}
+
+export function getDailyUsageForUser(userId, date = todayKey()) {
+  const store = loadStore();
+  const bucket = store.usage?.[userId]?.[date] || {};
+  return {
+    date,
+    entries: bucket
+  };
+}
+
+export function getUsageDashboardSummary(date = todayKey()) {
+  const store = loadStore();
+  const users = Object.values(store.usage || {});
+  const requestTotals = {};
+  let totalRequests = 0;
+  let totalTranscriptionSeconds = 0;
+
+  for (const perUser of users) {
+    const day = perUser?.[date] || {};
+    for (const [requestType, entry] of Object.entries(day)) {
+      const used = Number(entry?.used || 0);
+      requestTotals[requestType] = (requestTotals[requestType] || 0) + used;
+      totalRequests += used;
+      if (requestType === 'transcription') {
+        totalTranscriptionSeconds += used;
+      }
+    }
+  }
+
+  const todayEvents = (store.events || []).filter((entry) => (entry.created_at || '').slice(0, 10) === date);
+  const quotaHits = todayEvents.filter((entry) => entry.detail === 'quota_exceeded').length;
+  const activeUsers = new Set(todayEvents.map((entry) => entry.user_id).filter(Boolean)).size;
+
+  return {
+    date,
+    total_requests: totalRequests,
+    total_transcription_seconds: totalTranscriptionSeconds,
+    active_users: activeUsers,
+    quota_hits: quotaHits,
+    request_totals: Object.entries(requestTotals)
+      .sort((left, right) => right[1] - left[1])
+      .map(([request_type, used]) => ({ request_type, used }))
+  };
+}
+
+export function getUserUsageSummary(userId, date = todayKey()) {
+  const daily = getDailyUsageForUser(userId, date).entries;
+  const entries = Object.entries(daily)
+    .sort((left, right) => {
+      const leftUsed = Number(left[1]?.used || 0);
+      const rightUsed = Number(right[1]?.used || 0);
+      return rightUsed - leftUsed;
+    })
+    .map(([request_type, value]) => ({
+      request_type,
+      used: Number(value?.used || 0),
+      limit: limitFor(request_type).daily,
+      unit: limitFor(request_type).kind
+    }));
+
+  const recentEvents = listRecentUsageEventsForUser(userId, 50);
+  const quotaHits = recentEvents.filter((entry) => entry.detail === 'quota_exceeded').length;
+
+  return {
+    date,
+    entries,
+    transcription_seconds: Number(daily?.transcription?.used || 0),
+    quota_hits: quotaHits,
+    recent_events: recentEvents
+  };
+}

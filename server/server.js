@@ -1,7 +1,27 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { noteSeenUser } from "./beta_user_store.js";
-import { checkQuota, consumeQuota, quotaErrorPayload, recordUsageEvent } from "./usage_limits.js";
+import {
+    getBetaUser,
+    listBetaUsers,
+    noteSeenUser,
+    registerBetaUser
+} from "./beta_user_store.js";
+import {
+    checkQuota,
+    consumeQuota,
+    getUsageDashboardSummary,
+    getUserUsageSummary,
+    quotaErrorPayload,
+    recordUsageEvent
+} from "./usage_limits.js";
+import {
+    createInvite,
+    getInviteByCode,
+    listInvites,
+    markInviteSendFailed,
+    markInviteSent,
+    markInviteUsed
+} from "./invite_store.js";
 
 const config = {
     port: Number(process.env.PORT || 8787),
@@ -19,7 +39,11 @@ const config = {
     modelDeep: process.env.MODEL_DEEP || "gpt-4o-mini",
     allowedTokens: splitList(process.env.ALLOWED_TOKENS),
     reviewWhitelist: splitList(process.env.REVIEW_WHITELIST),
-    ratePerMinute: Number(process.env.RATE_LIMIT_RPM || 30)
+    ratePerMinute: Number(process.env.RATE_LIMIT_RPM || 30),
+    adminToken: process.env.ADMIN_TOKEN || "",
+    resendApiKey: process.env.RESEND_API_KEY || "",
+    inviteEmailFrom: process.env.INVITE_EMAIL_FROM || "",
+    inviteEmailReplyTo: process.env.INVITE_EMAIL_REPLY_TO || ""
 };
 
 const rateMap = new Map();
@@ -29,6 +53,22 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/healthz") {
         return json(res, 200, { status: "ok" });
+    }
+
+    if (url.pathname.startsWith("/admin")) {
+        if (!isAdminAuthorized(req, url)) {
+            return html(res, 401, renderAdminAuthRequired(url));
+        }
+        return handleAdmin(req, res, url);
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/beta/register") {
+        try {
+            const body = await readJSON(req);
+            return json(res, 200, handleBetaRegister(body));
+        } catch (error) {
+            return json(res, 400, { error: "beta_register_failed", message: error?.message || "unknown_error" });
+        }
     }
 
     if (req.method !== "POST") {
@@ -60,6 +100,7 @@ const server = http.createServer(async (req, res) => {
     const quotaAmount = quotaAmountFor(requestType, audioSeconds);
     const quota = checkQuota(userId, requestType, quotaAmount);
     if (!quota.allowed) {
+        recordUsageEvent({ userId, requestType, success: false, audioSeconds, detail: "quota_exceeded" });
         return json(res, 429, quotaErrorPayload(userId, requestType, quotaAmount));
     }
     consumeQuota(userId, requestType, quotaAmount);
@@ -256,6 +297,372 @@ function json(res, status, payload) {
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(payload));
+}
+
+function html(res, status, markup) {
+    res.statusCode = status;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end(markup);
+}
+
+function isAdminAuthorized(req, url) {
+    if (!config.adminToken) return true;
+    const bearer = parseAuth(req.headers.authorization);
+    const headerToken = req.headers["x-admin-token"]?.toString() || "";
+    const queryToken = url.searchParams.get("token") || "";
+    return [bearer, headerToken, queryToken].includes(config.adminToken);
+}
+
+async function handleAdmin(req, res, url) {
+    if (req.method === "GET" && url.pathname === "/admin") {
+        return html(res, 200, renderAdminDashboard(url));
+    }
+
+    if (req.method === "GET" && url.pathname === "/admin/users") {
+        return html(res, 200, renderAdminUsers(url));
+    }
+
+    if (req.method === "GET" && url.pathname.startsWith("/admin/users/")) {
+        const userId = decodeURIComponent(url.pathname.replace("/admin/users/", ""));
+        return html(res, 200, renderAdminUserDetail(url, userId));
+    }
+
+    if (req.method === "GET" && url.pathname === "/admin/invites") {
+        return html(res, 200, renderAdminInvites(url));
+    }
+
+    if (req.method === "POST" && url.pathname === "/admin/invites") {
+        const form = await readForm(req);
+        const email = normalizeEmail(form.get("email"));
+        const notes = form.get("notes")?.toString().trim() || null;
+        if (!email) {
+            return html(res, 400, renderAdminInvites(url, { flash: "请输入有效邮箱。", flashKind: "error" }));
+        }
+        const invite = createInvite({ email, notes, createdBy: "admin" });
+        const sendResult = await sendInviteEmail({
+            email,
+            inviteCode: invite.invite_code
+        });
+
+        if (sendResult.sent) {
+            markInviteSent(invite.invite_code);
+            return redirect(res, `/admin/invites${adminTokenSuffix(url)}&flash=${encodeURIComponent(`邀请码已发送到 ${email}`)}`.replace("/admin/invites&", "/admin/invites?"));
+        }
+
+        markInviteSendFailed(invite.invite_code, sendResult.error);
+        return redirect(res, `/admin/invites${adminTokenSuffix(url)}&flash=${encodeURIComponent(`邀请码已生成，但发送失败：${sendResult.error}`)}`.replace("/admin/invites&", "/admin/invites?"));
+    }
+
+    if (req.method === "POST" && url.pathname === "/admin/invites/resend") {
+        const form = await readForm(req);
+        const inviteCode = form.get("invite_code")?.toString() || "";
+        const invite = getInviteByCode(inviteCode);
+        if (!invite) {
+            return redirect(res, `/admin/invites${adminTokenSuffix(url)}&flash=${encodeURIComponent("邀请码不存在")}`.replace("/admin/invites&", "/admin/invites?"));
+        }
+        const sendResult = await sendInviteEmail({
+            email: invite.email,
+            inviteCode
+        });
+        if (sendResult.sent) {
+            markInviteSent(inviteCode);
+            return redirect(res, `/admin/invites${adminTokenSuffix(url)}&flash=${encodeURIComponent(`邀请码已重新发送到 ${invite.email}`)}`.replace("/admin/invites&", "/admin/invites?"));
+        }
+        markInviteSendFailed(inviteCode, sendResult.error);
+        return redirect(res, `/admin/invites${adminTokenSuffix(url)}&flash=${encodeURIComponent(`重发失败：${sendResult.error}`)}`.replace("/admin/invites&", "/admin/invites?"));
+    }
+
+    return html(res, 404, renderAdminPage(url, "Admin", "<p>未找到页面。</p>"));
+}
+
+function handleBetaRegister(body) {
+    const inviteCode = body?.invite_code?.toString().trim().toUpperCase() || "";
+    const displayName = body?.display_name?.toString().trim() || null;
+    const appleSubject = body?.apple_subject?.toString().trim() || null;
+    if (!inviteCode) {
+        throw new Error("missing_invite_code");
+    }
+
+    const invite = getInviteByCode(inviteCode);
+    if (!invite) {
+        throw new Error("invalid_invite_code");
+    }
+    if (invite.status === "used") {
+        throw new Error("invite_already_used");
+    }
+    if (invite.status === "revoked") {
+        throw new Error("invite_revoked");
+    }
+
+    const user = registerBetaUser({
+        inviteCode,
+        email: invite.email,
+        displayName,
+        appleSubject
+    });
+    markInviteUsed(inviteCode, user.user_id);
+
+    return {
+        ok: true,
+        user_id: user.user_id,
+        email: invite.email,
+        display_name: user.display_name,
+        auth_provider: user.auth_provider
+    };
+}
+
+async function readForm(req) {
+    const raw = await readRaw(req, 100_000);
+    const text = raw.toString("utf8");
+    const params = new URLSearchParams(text);
+    return params;
+}
+
+function normalizeEmail(raw) {
+    const value = raw?.toString().trim().toLowerCase() || "";
+    if (!value.includes("@") || !value.includes(".")) return "";
+    return value;
+}
+
+async function sendInviteEmail({ email, inviteCode }) {
+    if (!config.resendApiKey || !config.inviteEmailFrom) {
+        return { sent: false, error: "未配置邮件服务" };
+    }
+
+    const appLink = `life-narrator://beta/register?invite_code=${encodeURIComponent(inviteCode)}`;
+    const payload = {
+        from: config.inviteEmailFrom,
+        to: [email],
+        subject: "Life Narattor 测试邀请",
+        text: `你已获得 Life Narattor 测试资格。\n\n邀请码：${inviteCode}\n注册链接：${appLink}\n\n如果你不是预期收件人，请忽略这封邮件。`,
+        reply_to: config.inviteEmailReplyTo || undefined
+    };
+
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${config.resendApiKey}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        return { sent: false, error: `邮件服务错误 ${response.status}: ${text}` };
+    }
+
+    return { sent: true };
+}
+
+function adminTokenSuffix(url) {
+    if (!config.adminToken) return "";
+    const token = url.searchParams.get("token");
+    return token ? `?token=${encodeURIComponent(token)}` : "";
+}
+
+function renderAdminAuthRequired(url) {
+    return renderAdminPage(url, "Admin", `
+        <div class="card">
+            <h2>需要 Admin 访问令牌</h2>
+            <p>请通过 <code>?token=...</code>、<code>Authorization: Bearer ...</code> 或 <code>X-Admin-Token</code> 访问后台。</p>
+        </div>
+    `);
+}
+
+function renderAdminDashboard(url) {
+    const summary = getUsageDashboardSummary();
+    const requestRows = summary.request_totals.map((row) => `
+        <tr><td>${escapeHTML(row.request_type)}</td><td>${row.used}</td></tr>
+    `).join("");
+
+    const body = `
+        <div class="grid">
+            <div class="card metric"><div class="label">今日总请求</div><div class="value">${summary.total_requests}</div></div>
+            <div class="card metric"><div class="label">活跃用户</div><div class="value">${summary.active_users}</div></div>
+            <div class="card metric"><div class="label">转写秒数</div><div class="value">${summary.total_transcription_seconds}</div></div>
+            <div class="card metric"><div class="label">限额命中</div><div class="value">${summary.quota_hits}</div></div>
+        </div>
+        <div class="card">
+            <h2>今日请求分布</h2>
+            <table>
+                <thead><tr><th>类型</th><th>用量</th></tr></thead>
+                <tbody>${requestRows || '<tr><td colspan="2">暂无数据</td></tr>'}</tbody>
+            </table>
+        </div>
+        <div class="card quick-links">
+            <a href="/admin/users${adminTokenSuffix(url)}">查看测试用户</a>
+            <a href="/admin/invites${adminTokenSuffix(url)}">查看邀请码</a>
+        </div>
+    `;
+    return renderAdminPage(url, "Admin Dashboard", body);
+}
+
+function renderAdminUsers(url) {
+    const users = listBetaUsers();
+    const rows = users.map((user) => {
+        const usage = getUserUsageSummary(user.user_id);
+        return `
+            <tr>
+                <td><a href="/admin/users/${encodeURIComponent(user.user_id)}${adminTokenSuffix(url)}">${escapeHTML(user.user_id)}</a></td>
+                <td>${escapeHTML(user.email || "—")}</td>
+                <td>${escapeHTML(user.last_seen_at || "—")}</td>
+                <td>${usage.entries.reduce((sum, entry) => sum + entry.used, 0)}</td>
+                <td>${usage.transcription_seconds}</td>
+            </tr>
+        `;
+    }).join("");
+
+    return renderAdminPage(url, "Beta Users", `
+        <div class="card">
+            <h2>测试用户</h2>
+            <table>
+                <thead><tr><th>User ID</th><th>Email</th><th>最近活跃</th><th>今日请求</th><th>转写秒数</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="5">暂无用户</td></tr>'}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function renderAdminUserDetail(url, userId) {
+    const user = getBetaUser(userId);
+    if (!user) {
+        return renderAdminPage(url, "User Detail", `<div class="card"><p>用户不存在。</p></div>`);
+    }
+    const usage = getUserUsageSummary(userId);
+    const usageRows = usage.entries.map((entry) => `
+        <tr><td>${escapeHTML(entry.request_type)}</td><td>${entry.used}</td><td>${entry.limit}</td><td>${escapeHTML(entry.unit)}</td></tr>
+    `).join("");
+    const eventRows = usage.recent_events.map((entry) => `
+        <tr><td>${escapeHTML(entry.created_at || "—")}</td><td>${escapeHTML(entry.request_type)}</td><td>${entry.success ? "成功" : "失败"}</td><td>${escapeHTML(entry.detail || "—")}</td></tr>
+    `).join("");
+
+    return renderAdminPage(url, `User ${userId}`, `
+        <div class="card">
+            <h2>${escapeHTML(user.display_name || user.user_id)}</h2>
+            <p>Email：${escapeHTML(user.email || "—")}</p>
+            <p>来源：${escapeHTML(user.auth_provider || "—")}</p>
+            <p>最近活跃：${escapeHTML(user.last_seen_at || "—")}</p>
+        </div>
+        <div class="card">
+            <h2>今日使用</h2>
+            <table>
+                <thead><tr><th>类型</th><th>已用</th><th>额度</th><th>单位</th></tr></thead>
+                <tbody>${usageRows || '<tr><td colspan="4">暂无使用</td></tr>'}</tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h2>最近事件</h2>
+            <table>
+                <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>详情</th></tr></thead>
+                <tbody>${eventRows || '<tr><td colspan="4">暂无事件</td></tr>'}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function renderAdminInvites(url, options = {}) {
+    const invites = listInvites();
+    const flash = url.searchParams.get("flash") || options.flash || "";
+    const rows = invites.map((invite) => `
+        <tr>
+            <td>${escapeHTML(invite.email)}</td>
+            <td><code>${escapeHTML(invite.invite_code)}</code></td>
+            <td>${escapeHTML(invite.status)}</td>
+            <td>${escapeHTML(invite.sent_at || "—")}</td>
+            <td>${escapeHTML(invite.used_at || "—")}</td>
+            <td>
+                <form method="POST" action="/admin/invites/resend${adminTokenSuffix(url)}" class="inline-form">
+                    <input type="hidden" name="invite_code" value="${escapeHTML(invite.invite_code)}" />
+                    <button type="submit">重发</button>
+                </form>
+            </td>
+        </tr>
+    `).join("");
+
+    return renderAdminPage(url, "Invites", `
+        ${flash ? `<div class="flash ${options.flashKind === "error" ? "error" : ""}">${escapeHTML(flash)}</div>` : ""}
+        <div class="card">
+            <h2>新建邀请</h2>
+            <form method="POST" action="/admin/invites${adminTokenSuffix(url)}" class="stack-form">
+                <label>邮箱</label>
+                <input name="email" type="email" placeholder="tester@example.com" required />
+                <label>备注（可选）</label>
+                <input name="notes" type="text" placeholder="比如：核心测试用户" />
+                <button type="submit">生成并发送</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>邀请记录</h2>
+            <table>
+                <thead><tr><th>Email</th><th>邀请码</th><th>状态</th><th>发送时间</th><th>使用时间</th><th>操作</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="6">暂无邀请码</td></tr>'}</tbody>
+            </table>
+        </div>
+    `);
+}
+
+function renderAdminPage(url, title, body) {
+    return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHTML(title)}</title>
+  <style>
+    :root { color-scheme: light; --bg:#f5f6fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb; --blue:#0b84ff; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Text\",\"PingFang SC\",sans-serif; background:var(--bg); color:var(--text); }
+    .shell { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+    .nav { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+    .nav a { color:var(--blue); text-decoration:none; background:#eef5ff; padding:10px 14px; border-radius:999px; }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(15,23,42,.03); }
+    .metric .label { color:var(--muted); font-size:14px; margin-bottom:8px; }
+    .metric .value { font-size:28px; font-weight:700; }
+    h1 { font-size:32px; margin:0 0 12px; }
+    h2 { margin:0 0 12px; font-size:20px; }
+    p { color:var(--muted); line-height:1.55; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { border-top:1px solid var(--line); text-align:left; padding:10px 8px; vertical-align:top; }
+    th { color:var(--muted); font-weight:600; }
+    input, button { font:inherit; }
+    input { border:1px solid var(--line); border-radius:12px; padding:12px 14px; width:100%; box-sizing:border-box; }
+    button { border:none; border-radius:12px; padding:12px 16px; background:var(--blue); color:#fff; cursor:pointer; }
+    .stack-form { display:grid; gap:10px; }
+    .inline-form { margin:0; }
+    .quick-links { display:flex; gap:12px; flex-wrap:wrap; }
+    .quick-links a { color:var(--blue); text-decoration:none; }
+    .flash { background:#eef5ff; border:1px solid #cfe4ff; color:#0f4ea8; border-radius:14px; padding:12px 14px; margin-bottom:16px; }
+    .flash.error { background:#fff1f2; border-color:#fecdd3; color:#be123c; }
+    code { background:#f3f4f6; border-radius:8px; padding:2px 6px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <h1>${escapeHTML(title)}</h1>
+    <div class="nav">
+      <a href="/admin${adminTokenSuffix(url)}">总览</a>
+      <a href="/admin/users${adminTokenSuffix(url)}">用户</a>
+      <a href="/admin/invites${adminTokenSuffix(url)}">邀请码</a>
+    </div>
+    ${body}
+  </div>
+</body>
+</html>`;
+}
+
+function redirect(res, location) {
+    res.statusCode = 303;
+    res.setHeader("Location", location);
+    res.end();
+}
+
+function escapeHTML(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;");
 }
 
 async function handleQuickAck(body) {
