@@ -55,6 +55,25 @@ struct AssistArchiveCardView: View {
                         }
                     }
                 }
+
+                if !payload.card.effectiveRecordUnits.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("分化记录")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(Array(payload.card.effectiveRecordUnits.enumerated()), id: \.offset) { index, unit in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(index + 1). \(unit.title)")
+                                    .font(.footnote.weight(.semibold))
+                                if !unit.summary.isEmpty {
+                                    Text(unit.summary)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             actionRow

@@ -65,6 +65,7 @@ struct AssistArchiveEditSheet: View {
             context: context.trimmingCharacters(in: .whitespacesAndNewlines),
             keyPoints: keyPoints,
             nextSteps: nextSteps,
+            recordUnits: payload.card.recordUnits,
             tagSuggestions: payload.card.tagSuggestions,
             confidence: payload.card.confidence
         )
@@ -77,12 +78,15 @@ struct AssistArchiveEditSheet: View {
     }
 
     private func lines(from text: String, limit: Int) -> [String] {
-        text
-            .split(whereSeparator: \{ $0 == "\n" || $0 == "\r" \})
+        let parts: [String] = text
+            .split(whereSeparator: { $0 == "\n" || $0 == "\r" })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .prefix(limit)
-            .map(String.init)
+
+        if parts.count <= limit {
+            return parts
+        }
+        return Array(parts[0..<limit])
     }
 
     private func limitWords(_ text: String, maxWords: Int) -> String {
