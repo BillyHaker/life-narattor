@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 protocol AIService {
     func quickAck(for capture: CaptureItem) async throws -> QuickAckResult
@@ -1255,9 +1256,13 @@ final class BackendAIService: AIService {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue(appIdentifier(), forHTTPHeaderField: "X-App-Id")
         request.setValue(appVersion(), forHTTPHeaderField: "X-App-Version")
+        request.setValue(betaUserIdentifier(), forHTTPHeaderField: "X-User-Id")
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+
+        let audioSeconds = estimatedAudioDurationSeconds(for: fileURL)
+        request.setValue(String(audioSeconds), forHTTPHeaderField: "X-Audio-Seconds")
 
         let languageCode = locale?
             .split(separator: "-")
@@ -1302,6 +1307,7 @@ final class BackendAIService: AIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(appIdentifier(), forHTTPHeaderField: "X-App-Id")
         request.setValue(appVersion(), forHTTPHeaderField: "X-App-Version")
+        request.setValue(betaUserIdentifier(), forHTTPHeaderField: "X-User-Id")
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -1322,6 +1328,23 @@ final class BackendAIService: AIService {
         } catch {
             throw AIServiceError.invalidResponse
         }
+    }
+
+    private func betaUserIdentifier() -> String {
+        let key = "LifeNarrator.BetaUserID"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let created = "beta-\(UUID().uuidString.lowercased())"
+        UserDefaults.standard.set(created, forKey: key)
+        return created
+    }
+
+    private func estimatedAudioDurationSeconds(for fileURL: URL) -> Int {
+        let asset = AVURLAsset(url: fileURL)
+        let seconds = CMTimeGetSeconds(asset.duration)
+        guard seconds.isFinite, seconds > 0 else { return 1 }
+        return max(1, Int(ceil(seconds)))
     }
 
     private func appIdentifier() -> String {

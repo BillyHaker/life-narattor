@@ -1,5 +1,7 @@
 import http from "node:http";
 import { URL } from "node:url";
+import { noteSeenUser } from "./beta_user_store.js";
+import { checkQuota, consumeQuota, quotaErrorPayload, recordUsageEvent } from "./usage_limits.js";
 
 const config = {
     port: Number(process.env.PORT || 8787),
@@ -17,12 +19,10 @@ const config = {
     modelDeep: process.env.MODEL_DEEP || "gpt-4o-mini",
     allowedTokens: splitList(process.env.ALLOWED_TOKENS),
     reviewWhitelist: splitList(process.env.REVIEW_WHITELIST),
-    ratePerMinute: Number(process.env.RATE_LIMIT_RPM || 30),
-    dailyQuota: Number(process.env.DAILY_QUOTA || 200)
+    ratePerMinute: Number(process.env.RATE_LIMIT_RPM || 30)
 };
 
 const rateMap = new Map();
-const dailyMap = new Map();
 
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
@@ -40,91 +40,107 @@ const server = http.createServer(async (req, res) => {
         return json(res, 401, { error: "unauthorized" });
     }
 
-    const userId = req.headers["x-user-id"]?.toString() || auth || "anonymous";
+    const userId = req.headers["x-user-id"]?.toString();
+    if (!userId) {
+        return json(res, 400, { error: "missing_user_id" });
+    }
+
+    noteSeenUser({
+        userId,
+        appId: req.headers["x-app-id"]?.toString() || null,
+        appVersion: req.headers["x-app-version"]?.toString() || null
+    });
+
     if (!isRateAllowed(userId)) {
         return json(res, 429, { error: "rate_limited" });
     }
 
-    if (!isQuotaAllowed(userId)) {
-        return json(res, 429, { error: "quota_exceeded" });
+    const requestType = requestTypeForPath(url.pathname);
+    const audioSeconds = Number(req.headers["x-audio-seconds"]?.toString() || "0") || 0;
+    const quotaAmount = quotaAmountFor(requestType, audioSeconds);
+    const quota = checkQuota(userId, requestType, quotaAmount);
+    if (!quota.allowed) {
+        return json(res, 429, quotaErrorPayload(userId, requestType, quotaAmount));
     }
+    consumeQuota(userId, requestType, quotaAmount);
 
     try {
         if (url.pathname === "/v1/transcribe") {
             const payload = await handleTranscribe(req);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         const body = await readJSON(req);
         if (url.pathname === "/v1/quick/ack") {
             const payload = await handleQuickAck(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/assist") {
             const payload = await handleAssist(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/chat") {
             const payload = await handleChat(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/focused-analysis") {
             const payload = await handleFocusedAnalysis(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/review-analysis") {
             const payload = await handleReviewAnalysis(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/clean") {
             const payload = await handleClean(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/atomize") {
             const payload = await handleAtomize(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/tags") {
             const payload = await handleTags(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/hidden-tags/cluster") {
             const payload = await handleHiddenTagCluster(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/hidden-tags/normalize") {
             const payload = await handleHiddenTagNormalize(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/tasks") {
             const payload = await handleTask(body);
-            incrementQuota(userId);
+            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
             return json(res, 200, payload);
         }
 
         return json(res, 404, { error: "not_found" });
     } catch (error) {
+        recordUsageEvent({ userId, requestType, success: false, audioSeconds, detail: error?.message || null });
         return json(res, 500, { error: "server_error", message: error?.message });
     }
 });
@@ -171,26 +187,42 @@ function isRateAllowed(key) {
     return entry.count <= config.ratePerMinute;
 }
 
-function isQuotaAllowed(key) {
-    const today = new Date().toISOString().slice(0, 10);
-    const entry = dailyMap.get(key) || { date: today, count: 0 };
-    if (entry.date !== today) {
-        entry.date = today;
-        entry.count = 0;
+function requestTypeForPath(pathname) {
+    switch (pathname) {
+        case "/v1/transcribe":
+            return "transcription";
+        case "/v1/quick/ack":
+            return "quick_ack";
+        case "/v1/assist":
+            return "assist_archive";
+        case "/v1/chat":
+            return "chat";
+        case "/v1/focused-analysis":
+            return "review_focused";
+        case "/v1/review-analysis":
+            return "review_overview";
+        case "/v1/clean":
+            return "clean";
+        case "/v1/atomize":
+            return "atomize";
+        case "/v1/tags":
+            return "tag_suggest";
+        case "/v1/hidden-tags/cluster":
+            return "hidden_tag_cluster";
+        case "/v1/hidden-tags/normalize":
+            return "hidden_tag_normalize";
+        case "/v1/tasks":
+            return "tasks";
+        default:
+            return "chat";
     }
-    dailyMap.set(key, entry);
-    return entry.count < config.dailyQuota;
 }
 
-function incrementQuota(key) {
-    const today = new Date().toISOString().slice(0, 10);
-    const entry = dailyMap.get(key) || { date: today, count: 0 };
-    if (entry.date !== today) {
-        entry.date = today;
-        entry.count = 0;
+function quotaAmountFor(requestType, audioSeconds) {
+    if (requestType === "transcription") {
+        return Math.max(1, Math.ceil(audioSeconds));
     }
-    entry.count += 1;
-    dailyMap.set(key, entry);
+    return 1;
 }
 
 async function readJSON(req) {
