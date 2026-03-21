@@ -10,6 +10,8 @@ protocol AIService {
     func createDeepTask(_ request: DeepTaskRequest) async throws -> DeepTaskHandle
     func atomize(capture: CaptureItem, tagLibrary: TagLibrary) async throws -> AtomizeResult
     func suggestTags(atomization: AtomizeResult, tagLibrary: TagLibrary) async throws -> TagSuggestionResult
+    func clusterHiddenTags(_ tags: [HiddenTagInventoryItem]) async throws -> HiddenTagClusterResult
+    func normalizeHiddenTags(in bucket: HiddenTagBucket, tags: [HiddenTagInventoryItem]) async throws -> [HiddenTagCanonicalMapping]
     func transcribeAudio(fileURL: URL, locale: String?) async throws -> String
 }
 
@@ -124,6 +126,14 @@ final class UnavailableAIService: AIService {
     }
 
     func suggestTags(atomization: AtomizeResult, tagLibrary: TagLibrary) async throws -> TagSuggestionResult {
+        throw AIServiceError.missingAPIKey
+    }
+
+    func clusterHiddenTags(_ tags: [HiddenTagInventoryItem]) async throws -> HiddenTagClusterResult {
+        throw AIServiceError.missingAPIKey
+    }
+
+    func normalizeHiddenTags(in bucket: HiddenTagBucket, tags: [HiddenTagInventoryItem]) async throws -> [HiddenTagCanonicalMapping] {
         throw AIServiceError.missingAPIKey
     }
 
@@ -406,6 +416,69 @@ final class OpenAIService: AIService {
             throw AIServiceError.invalidResponse
         }
         return try JSONDecoder().decode(TagSuggestionResult.self, from: data)
+    }
+
+    func clusterHiddenTags(_ tags: [HiddenTagInventoryItem]) async throws -> HiddenTagClusterResult {
+        let userInput = jsonString(from: [
+            "hidden_tags": tags.map {
+                [
+                    "id": $0.id.uuidString,
+                    "name": $0.name,
+                    "type": $0.type,
+                    "link_count": $0.linkCount
+                ]
+            }
+        ])
+        let output = try await requestJSON(
+            schemaName: "hidden_tag_cluster",
+            schema: hiddenTagClusterSchema(),
+            instructions: """
+            Return JSON only.
+            You are organizing hidden retrieval tags into broad semantic buckets before later synonym normalization.
+            Do not merge, rename, or simplify tags here. Only assign them to broad groups.
+            Put every tag into exactly one bucket.
+            Use only these buckets: work_project, habit_rhythm, state_emotion, body_health, context_scene, person_relation, interest_topic, misc.
+            Keep grouping broad and stable. When unsure, use misc.
+            """,
+            userInput: userInput
+        )
+        guard let data = output.data(using: .utf8) else {
+            throw AIServiceError.invalidResponse
+        }
+        return try JSONDecoder().decode(HiddenTagClusterResult.self, from: data)
+    }
+
+    func normalizeHiddenTags(in bucket: HiddenTagBucket, tags: [HiddenTagInventoryItem]) async throws -> [HiddenTagCanonicalMapping] {
+        let userInput = jsonString(from: [
+            "bucket": bucket.rawValue,
+            "hidden_tags": tags.map {
+                [
+                    "id": $0.id.uuidString,
+                    "name": $0.name,
+                    "type": $0.type,
+                    "link_count": $0.linkCount
+                ]
+            }
+        ])
+        let output = try await requestJSON(
+            schemaName: "hidden_tag_normalize",
+            schema: hiddenTagNormalizationSchema(),
+            instructions: """
+            Return JSON only.
+            You are standardizing hidden retrieval tags inside one already-grouped semantic bucket.
+            Only merge tags when their meaning is fully or nearly identical.
+            Do not merge broader/narrower tags, cause/effect tags, adjacent-but-different tags, or tags that simply co-occur.
+            Every raw tag must receive one canonical_name.
+            If a tag has no true synonym in the group, keep a canonical_name very close to the raw name.
+            canonical_name must be a short noun or noun phrase, not a sentence.
+            """,
+            userInput: userInput
+        )
+        guard let data = output.data(using: .utf8) else {
+            throw AIServiceError.invalidResponse
+        }
+        let result = try JSONDecoder().decode(HiddenTagNormalizationMap.self, from: data)
+        return result.mappings
     }
 
     func transcribeAudio(fileURL: URL, locale: String?) async throws -> String {
@@ -857,6 +930,59 @@ final class OpenAIService: AIService {
             "additionalProperties": false
         ]
     }
+
+    private func hiddenTagClusterSchema() -> [String: Any] {
+        let bucketNames = HiddenTagBucket.allCases.map(\.rawValue)
+        return [
+            "type": "object",
+            "properties": [
+                "groups": [
+                    "type": "array",
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "bucket": ["type": "string", "enum": bucketNames],
+                            "title": ["type": "string"],
+                            "member_ids": ["type": "array", "items": ["type": "string"]]
+                        ],
+                        "required": ["bucket", "title", "member_ids"],
+                        "additionalProperties": false
+                    ]
+                ]
+            ],
+            "required": ["groups"],
+            "additionalProperties": false
+        ]
+    }
+
+    private func hiddenTagNormalizationSchema() -> [String: Any] {
+        let bucketNames = HiddenTagBucket.allCases.map(\.rawValue)
+        return [
+            "type": "object",
+            "properties": [
+                "updated_at": ["type": ["string", "null"]],
+                "mappings": [
+                    "type": "array",
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "raw_tag_id": ["type": "string"],
+                            "raw_name": ["type": "string"],
+                            "raw_type": ["type": "string"],
+                            "bucket": ["type": "string", "enum": bucketNames],
+                            "canonical_name": ["type": "string"],
+                            "confidence": ["type": ["number", "null"]],
+                            "reason": ["type": ["string", "null"]]
+                        ],
+                        "required": ["raw_tag_id", "raw_name", "raw_type", "bucket", "canonical_name", "confidence", "reason"],
+                        "additionalProperties": false
+                    ]
+                ]
+            ],
+            "required": ["updated_at", "mappings"],
+            "additionalProperties": false
+        ]
+    }
 }
 
 private struct QuickAckPayload: Decodable {
@@ -1097,6 +1223,24 @@ final class BackendAIService: AIService {
             body: requestBody
         )
         return response
+    }
+
+    func clusterHiddenTags(_ tags: [HiddenTagInventoryItem]) async throws -> HiddenTagClusterResult {
+        let requestBody = HiddenTagClusterRequest(hiddenTags: tags)
+        let response: HiddenTagClusterResult = try await post(
+            path: "/v1/hidden-tags/cluster",
+            body: requestBody
+        )
+        return response
+    }
+
+    func normalizeHiddenTags(in bucket: HiddenTagBucket, tags: [HiddenTagInventoryItem]) async throws -> [HiddenTagCanonicalMapping] {
+        let requestBody = HiddenTagNormalizeRequest(bucket: bucket, hiddenTags: tags)
+        let response: HiddenTagNormalizationMap = try await post(
+            path: "/v1/hidden-tags/normalize",
+            body: requestBody
+        )
+        return response.mappings
     }
 
     func transcribeAudio(fileURL: URL, locale: String?) async throws -> String {
@@ -1358,6 +1502,24 @@ private struct TagSuggestRequest: Encodable {
         case existingVisibleTags = "existing_visible_tags"
         case policy
         case personaProfile = "persona_profile"
+    }
+}
+
+private struct HiddenTagClusterRequest: Encodable {
+    let hiddenTags: [HiddenTagInventoryItem]
+
+    private enum CodingKeys: String, CodingKey {
+        case hiddenTags = "hidden_tags"
+    }
+}
+
+private struct HiddenTagNormalizeRequest: Encodable {
+    let bucket: HiddenTagBucket
+    let hiddenTags: [HiddenTagInventoryItem]
+
+    private enum CodingKeys: String, CodingKey {
+        case bucket
+        case hiddenTags = "hidden_tags"
     }
 }
 

@@ -122,6 +122,7 @@ struct MemoryIndexStore {
     }
 
     private func fetchTagSignals(captureID: UUID) -> [IndexedTagSignal] {
+        let normalizationMap = fetchHiddenTagNormalizationMap()
         let atomRequest = NSFetchRequest<AtomEntity>(entityName: "AtomEntity")
         atomRequest.predicate = NSPredicate(format: "captureID == %@", captureID as CVarArg)
         guard let atoms = try? context.fetch(atomRequest), !atoms.isEmpty else { return [] }
@@ -139,14 +140,29 @@ struct MemoryIndexStore {
 
         let signals = links.compactMap { link -> IndexedTagSignal? in
             guard let tag = tagsByID[link.tagID], let type = TagType(rawValue: tag.type) else { return nil }
+            let canonicalName = (!tag.isUserVisible ? normalizationMap?.canonicalName(for: tag.id) : nil) ?? tag.name
             return IndexedTagSignal(
                 type: type,
-                name: tag.name,
+                name: canonicalName,
                 source: tag.isUserVisible ? .explicit : .hidden,
                 isVisible: tag.isUserVisible
             )
         }
         return Array(Set(signals))
+    }
+
+    private func fetchHiddenTagNormalizationMap() -> HiddenTagNormalizationMap? {
+        let request = NSFetchRequest<ArtifactEntity>(entityName: "ArtifactEntity")
+        request.predicate = NSPredicate(
+            format: "artifactType == %@ AND sourceCaptureID == %@",
+            hiddenTagNormalizationArtifactType,
+            hiddenTagNormalizationSourceID as CVarArg
+        )
+        guard let artifact = try? context.fetch(request).first,
+              let data = artifact.contentJSON.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(HiddenTagNormalizationMap.self, from: data)
     }
 
     private func score(snapshot: IndexedCaptureSnapshot, plan: RetrievalPlan) -> Double {

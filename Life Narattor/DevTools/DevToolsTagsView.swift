@@ -10,6 +10,9 @@ struct DevToolsTagsView: View {
     @State private var isRerunningSuggestions = false
     @State private var rerunStatusMessage: String?
     @State private var rerunDiagnostics: [TagRerunDiagnostic] = []
+    @State private var isNormalizingHiddenTags = false
+    @State private var normalizationStatusMessage: String?
+    @State private var normalizationGroups: [HiddenTagNormalizationDisplayGroup] = []
 
     var body: some View {
         VStack(spacing: 12) {
@@ -96,8 +99,32 @@ struct DevToolsTagsView: View {
             .buttonStyle(.borderedProminent)
             .disabled(isRerunningSuggestions)
 
+            Button {
+                Task {
+                    await normalizeHiddenTags()
+                }
+            } label: {
+                HStack {
+                    if isNormalizingHiddenTags {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(isNormalizingHiddenTags ? "整理中…" : "整理隐性标签")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRerunningSuggestions || isNormalizingHiddenTags)
+
             if let rerunStatusMessage {
                 Text(rerunStatusMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let normalizationStatusMessage {
+                Text(normalizationStatusMessage)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -123,6 +150,32 @@ struct DevToolsTagsView: View {
                                 Text(detail)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                }
+            }
+
+            if !normalizationGroups.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("隐性标签标准化")
+                        .font(.subheadline.weight(.semibold))
+
+                    ForEach(normalizationGroups) { group in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(group.title)
+                                .font(.footnote.weight(.semibold))
+                            ForEach(group.rows) { row in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(row.canonicalName)
+                                        .font(.caption.weight(.semibold))
+                                    Text(row.rawNames.joined(separator: "、"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         .padding(10)
@@ -175,6 +228,9 @@ struct DevToolsTagsView: View {
         groupedTags = TagType.allCases.map { type in
             (type, rows.filter { $0.type == type })
         }
+        if let existingMap = fetchHiddenTagNormalizationMap() {
+            normalizationGroups = buildNormalizationDisplayGroups(from: existingMap)
+        }
     }
 
     @MainActor
@@ -184,7 +240,7 @@ struct DevToolsTagsView: View {
         rerunStatusMessage = "正在读取最近 10 条记录…"
         rerunDiagnostics = []
 
-        let captures = fetchRecentCaptures(limit: 10)
+        let captures = fetchRecentEligibleCaptures(limit: 10)
         let atomStore = AtomTagStore(context: context)
         let tagLibrary = loadTagLibrary()
 
@@ -256,12 +312,16 @@ struct DevToolsTagsView: View {
     }
 
     @MainActor
-    private func fetchRecentCaptures(limit: Int) -> [CaptureEntity] {
+    private func fetchRecentEligibleCaptures(limit: Int) -> [CaptureEntity] {
         let request = NSFetchRequest<CaptureEntity>(entityName: "CaptureEntity")
         request.predicate = NSPredicate(format: "mode == %@", CaptureInputMode.log.rawValue)
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        request.fetchLimit = limit
-        return (try? context.fetch(request)) ?? []
+        request.fetchLimit = max(limit * 5, 30)
+        let candidates = (try? context.fetch(request)) ?? []
+        return candidates
+            .filter { fetchTagSuggestionInput(captureID: $0.id) != nil && hasAtoms(captureID: $0.id) }
+            .prefix(limit)
+            .map { $0 }
     }
 
     @MainActor
@@ -287,10 +347,10 @@ struct DevToolsTagsView: View {
             let recordUnits = archive.card.effectiveRecordUnits.map {
                 RecordUnitDraft(
                     summary: $0.summary,
-                    contextAttributes: [],
+                    contextAttributes: $0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [RecordUnitAttribute(name: "title", value: $0.title)],
                     behavioralChain: $0.nextSteps,
-                    resultOrState: [],
-                    tagHints: [],
+                    resultOrState: $0.keyPoints,
+                    tagHints: hiddenTagHints(from: $0),
                     confidence: nil,
                     startChar: nil,
                     endChar: nil
@@ -308,6 +368,21 @@ struct DevToolsTagsView: View {
         return nil
     }
 
+    private func hiddenTagHints(from unit: AssistRecordUnit) -> [String] {
+        let seeds = [unit.title] + unit.keyPoints + unit.nextSteps
+        return seeds
+            .flatMap { text in
+                text
+                    .replacingOccurrences(of: "：", with: " ")
+                    .replacingOccurrences(of: "，", with: " ")
+                    .replacingOccurrences(of: "。", with: " ")
+                    .split(separator: " ")
+                    .map(String.init)
+            }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.count >= 2 && $0.count <= 12 }
+    }
+
     @MainActor
     private func fetchAssistArchivePayload(captureID: UUID) -> AssistArchivePayload? {
         let request = NSFetchRequest<ArtifactEntity>(entityName: "ArtifactEntity")
@@ -315,6 +390,14 @@ struct DevToolsTagsView: View {
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
         guard let artifact = try? context.fetch(request).first else { return nil }
         return AssistArchivePayload.decode(from: artifact.contentJSON)
+    }
+
+    @MainActor
+    private func hasAtoms(captureID: UUID) -> Bool {
+        let request = NSFetchRequest<AtomEntity>(entityName: "AtomEntity")
+        request.predicate = NSPredicate(format: "captureID == %@", captureID as CVarArg)
+        request.fetchLimit = 1
+        return ((try? context.count(for: request)) ?? 0) > 0
     }
 
     @MainActor
@@ -373,6 +456,120 @@ struct DevToolsTagsView: View {
             .padding(.vertical, 4)
             .background(Color(.systemGray6))
             .clipShape(Capsule())
+    }
+
+    @MainActor
+    private func normalizeHiddenTags() async {
+        guard !isNormalizingHiddenTags else { return }
+        isNormalizingHiddenTags = true
+        normalizationStatusMessage = "正在读取隐性标签…"
+        normalizationGroups = []
+
+        let inventory = loadHiddenTagInventory()
+        guard !inventory.isEmpty else {
+            normalizationStatusMessage = "当前没有可整理的隐性标签。"
+            isNormalizingHiddenTags = false
+            return
+        }
+
+        do {
+            let clusterResult = try await aiService.clusterHiddenTags(inventory)
+            var mappings: [HiddenTagCanonicalMapping] = []
+            let inventoryByID = Dictionary(uniqueKeysWithValues: inventory.map { ($0.id, $0) })
+
+            for (index, group) in clusterResult.groups.enumerated() {
+                normalizationStatusMessage = "正在整理第 \(index + 1)/\(clusterResult.groups.count) 组…"
+                let members = group.memberIDs.compactMap { inventoryByID[$0] }
+                guard !members.isEmpty else { continue }
+                let normalized = try await aiService.normalizeHiddenTags(in: group.bucket, tags: members)
+                mappings.append(contentsOf: normalized)
+            }
+
+            let map = HiddenTagNormalizationMap(updatedAt: Date(), mappings: mappings)
+            saveHiddenTagNormalizationMap(map)
+            normalizationGroups = buildNormalizationDisplayGroups(from: map)
+            normalizationStatusMessage = "完成：整理 \(inventory.count) 个隐性标签，得到 \(Set(mappings.map { $0.canonicalName }).count) 个标准标签。"
+        } catch {
+            normalizationStatusMessage = "失败：\(describe(error: error))"
+        }
+
+        isNormalizingHiddenTags = false
+    }
+
+    @MainActor
+    private func loadHiddenTagInventory() -> [HiddenTagInventoryItem] {
+        let tagRequest = NSFetchRequest<TagEntity>(entityName: "TagEntity")
+        tagRequest.predicate = NSPredicate(format: "isUserVisible == NO")
+        tagRequest.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        let tags = (try? context.fetch(tagRequest)) ?? []
+
+        let linkRequest = NSFetchRequest<AtomTagEntity>(entityName: "AtomTagEntity")
+        let links = (try? context.fetch(linkRequest)) ?? []
+        let linkCounts = links.reduce(into: [UUID: Int]()) { partialResult, link in
+            partialResult[link.tagID, default: 0] += 1
+        }
+
+        return tags.compactMap { tag in
+            guard let type = TagType(rawValue: tag.type) else { return nil }
+            let count = linkCounts[tag.id, default: 0]
+            guard count > 0 else { return nil }
+            return HiddenTagInventoryItem(id: tag.id, name: tag.name, type: type.rawValue, linkCount: count)
+        }
+    }
+
+    @MainActor
+    private func saveHiddenTagNormalizationMap(_ map: HiddenTagNormalizationMap) {
+        let request = NSFetchRequest<ArtifactEntity>(entityName: "ArtifactEntity")
+        request.predicate = NSPredicate(
+            format: "artifactType == %@ AND sourceCaptureID == %@",
+            hiddenTagNormalizationArtifactType,
+            hiddenTagNormalizationSourceID as CVarArg
+        )
+        let existing = (try? context.fetch(request))?.first
+        let artifact = existing ?? ArtifactEntity(context: context)
+        if existing == nil {
+            artifact.id = UUID()
+            artifact.artifactType = hiddenTagNormalizationArtifactType
+            artifact.sourceCaptureID = hiddenTagNormalizationSourceID
+            artifact.createdAt = Date()
+        }
+        artifact.title = "hidden_tag_normalization"
+        let encoder = JSONEncoder()
+        artifact.contentJSON = (try? String(data: encoder.encode(map), encoding: .utf8)) ?? "{}"
+        artifact.status = "done"
+        artifact.updatedAt = Date()
+        try? context.save()
+    }
+
+    @MainActor
+    private func fetchHiddenTagNormalizationMap() -> HiddenTagNormalizationMap? {
+        let request = NSFetchRequest<ArtifactEntity>(entityName: "ArtifactEntity")
+        request.predicate = NSPredicate(
+            format: "artifactType == %@ AND sourceCaptureID == %@",
+            hiddenTagNormalizationArtifactType,
+            hiddenTagNormalizationSourceID as CVarArg
+        )
+        guard let artifact = try? context.fetch(request).first,
+              let data = artifact.contentJSON.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(HiddenTagNormalizationMap.self, from: data)
+    }
+
+    private func buildNormalizationDisplayGroups(from map: HiddenTagNormalizationMap) -> [HiddenTagNormalizationDisplayGroup] {
+        let grouped = Dictionary(grouping: map.mappings, by: \.bucket)
+        return HiddenTagBucket.allCases.compactMap { bucket in
+            guard let entries = grouped[bucket], !entries.isEmpty else { return nil }
+            let rows = Dictionary(grouping: entries, by: \.canonicalName)
+                .map { canonicalName, members in
+                    HiddenTagNormalizationDisplayRow(
+                        canonicalName: canonicalName,
+                        rawNames: members.map(\.rawName).sorted()
+                    )
+                }
+                .sorted { $0.canonicalName < $1.canonicalName }
+            return HiddenTagNormalizationDisplayGroup(title: bucket.title, rows: rows)
+        }
     }
 }
 
@@ -443,4 +640,16 @@ private struct TagRerunDiagnostic: Identifiable {
             return .red
         }
     }
+}
+
+private struct HiddenTagNormalizationDisplayGroup: Identifiable {
+    let id = UUID()
+    let title: String
+    let rows: [HiddenTagNormalizationDisplayRow]
+}
+
+private struct HiddenTagNormalizationDisplayRow: Identifiable {
+    let id = UUID()
+    let canonicalName: String
+    let rawNames: [String]
 }

@@ -105,6 +105,18 @@ const server = http.createServer(async (req, res) => {
             return json(res, 200, payload);
         }
 
+        if (url.pathname === "/v1/hidden-tags/cluster") {
+            const payload = await handleHiddenTagCluster(body);
+            incrementQuota(userId);
+            return json(res, 200, payload);
+        }
+
+        if (url.pathname === "/v1/hidden-tags/normalize") {
+            const payload = await handleHiddenTagNormalize(body);
+            incrementQuota(userId);
+            return json(res, 200, payload);
+        }
+
         if (url.pathname === "/v1/tasks") {
             const payload = await handleTask(body);
             incrementQuota(userId);
@@ -536,6 +548,100 @@ async function handleTags(body) {
             }
         }),
         schemaName: "tag_suggest",
+        schema,
+        model: config.modelAssist
+    });
+
+    return JSON.parse(output);
+}
+
+async function handleHiddenTagCluster(body) {
+    const hiddenTags = Array.isArray(body?.hidden_tags) ? body.hidden_tags : [];
+    const bucketNames = [
+        "work_project",
+        "habit_rhythm",
+        "state_emotion",
+        "body_health",
+        "context_scene",
+        "person_relation",
+        "interest_topic",
+        "misc"
+    ];
+    const schema = {
+        type: "object",
+        properties: {
+            groups: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        bucket: { type: "string", enum: bucketNames },
+                        title: { type: "string" },
+                        member_ids: { type: "array", items: { type: "string" } }
+                    },
+                    required: ["bucket", "title", "member_ids"],
+                    additionalProperties: false
+                }
+            }
+        },
+        required: ["groups"],
+        additionalProperties: false
+    };
+
+    const output = await callOpenAI({
+        instructions: "Return JSON only. You are organizing hidden retrieval tags into broad semantic buckets before later synonym normalization. Do not merge, rename, or simplify tags here. Only assign them to broad groups. Put every tag into exactly one bucket. Use only these buckets: work_project, habit_rhythm, state_emotion, body_health, context_scene, person_relation, interest_topic, misc. Keep grouping broad and stable. When unsure, use misc.",
+        userInput: JSON.stringify({ hidden_tags: hiddenTags }),
+        schemaName: "hidden_tag_cluster",
+        schema,
+        model: config.modelAssist
+    });
+
+    return JSON.parse(output);
+}
+
+async function handleHiddenTagNormalize(body) {
+    const hiddenTags = Array.isArray(body?.hidden_tags) ? body.hidden_tags : [];
+    const bucket = body?.bucket || "misc";
+    const bucketNames = [
+        "work_project",
+        "habit_rhythm",
+        "state_emotion",
+        "body_health",
+        "context_scene",
+        "person_relation",
+        "interest_topic",
+        "misc"
+    ];
+    const schema = {
+        type: "object",
+        properties: {
+            updated_at: { type: ["string", "null"] },
+            mappings: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        raw_tag_id: { type: "string" },
+                        raw_name: { type: "string" },
+                        raw_type: { type: "string" },
+                        bucket: { type: "string", enum: bucketNames },
+                        canonical_name: { type: "string" },
+                        confidence: { type: ["number", "null"] },
+                        reason: { type: ["string", "null"] }
+                    },
+                    required: ["raw_tag_id", "raw_name", "raw_type", "bucket", "canonical_name", "confidence", "reason"],
+                    additionalProperties: false
+                }
+            }
+        },
+        required: ["updated_at", "mappings"],
+        additionalProperties: false
+    };
+
+    const output = await callOpenAI({
+        instructions: "Return JSON only. You are standardizing hidden retrieval tags inside one already-grouped semantic bucket. Only merge tags when their meaning is fully or nearly identical. Do not merge broader/narrower tags, cause/effect tags, adjacent-but-different tags, or tags that simply co-occur. Every raw tag must receive one canonical_name. If a tag has no true synonym in the group, keep a canonical_name very close to the raw name. canonical_name must be a short noun or noun phrase, not a sentence.",
+        userInput: JSON.stringify({ bucket, hidden_tags: hiddenTags }),
+        schemaName: "hidden_tag_normalize",
         schema,
         model: config.modelAssist
     });
