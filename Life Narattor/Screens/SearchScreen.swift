@@ -10,24 +10,36 @@ struct SearchScreen: View {
     @State private var isSearching = false
     @State private var errorMessage: String? = nil
     @State private var results: [SearchResultItem] = []
-    @State private var showingDateRangePicker = false
     @State private var selectedCapture: CaptureItem? = nil
     @State private var selectedAtom: AtomItem? = nil
+    @State private var isUsingRetrievalPlan = false
+    @State private var activeRetrievalPlan: RetrievalPlan? = nil
+    @State private var focusedEvidence: FocusedEvidenceBundle? = nil
+    @State private var focusedEvidenceText: String? = nil
+    @State private var expandedEvidenceGroupIDs: Set<UUID> = []
+    @State private var focusedAIAnalysis: String? = nil
+    @State private var isLoadingFocusedAIAnalysis = false
+    @State private var overviewNarrativeMaterial: NarrativeMaterial? = nil
+    @State private var overviewAIAnalysis: String? = nil
+    @State private var isLoadingOverviewAIAnalysis = false
+    @State private var followupInput: String = ""
+    @State private var followupMessages: [ReviewFollowupMessage] = []
+    @State private var isLoadingFollowup = false
+    @State private var showAllFollowups = false
+    @State private var suppressQueryReset = false
 
-    private let recentSearches = ["方向乱", "项目", "运动"]
-
-    init(initialQuery: String = "") {
+    init(initialQuery: String = "", initialFilter: SearchFilterType? = nil) {
         _query = State(initialValue: initialQuery)
+        _selectedFilter = State(initialValue: initialFilter)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             searchBar
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    filterRow
-                    recentSection
+                    filterToolbar
                     resultsSection
                 }
                 .padding(.horizontal, 16)
@@ -37,132 +49,232 @@ struct SearchScreen: View {
         .padding(.top, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("搜索")
+        .navigationTitle("AI 回顾")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("选择时间范围", isPresented: $showingDateRangePicker, titleVisibility: .visible) {
-            ForEach(SearchDateRange.allCases) { range in
-                Button(range.title) {
-                    selectedDateRange = range
-                }
-            }
-        }
         .sheet(item: $selectedCapture) { item in
             CaptureDetailSheet(item: item, context: context)
         }
         .sheet(item: $selectedAtom) { atom in
-            AtomDetailSheet(atom: atom, context: context, onSaved: performSearch)
+            AtomDetailSheet(atom: atom, context: context, onSaved: {
+                if shouldAutoRefreshAIReview {
+                    performRetrievalSearch()
+                }
+            })
         }
-        .onAppear {
-            performSearch()
+        .navigationDestination(for: TimelineDay.self) { day in
+            DayDetailScreen(day: day)
         }
         .onChange(of: query) { _, _ in
-            performSearch()
+            if suppressQueryReset {
+                suppressQueryReset = false
+                return
+            }
+            resetAIReviewOutput()
         }
         .onChange(of: selectedFilter) { _, _ in
-            performSearch()
+            if shouldAutoRefreshAIReview {
+                performRetrievalSearch()
+            }
         }
         .onChange(of: selectedDateRange) { _, _ in
-            performSearch()
+            if shouldAutoRefreshAIReview {
+                performRetrievalSearch()
+            }
+        }
+        .onAppear {
+            if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isUsingRetrievalPlan {
+                performRetrievalSearch()
+            }
         }
     }
 
     private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("AI 回顾")
+                .font(.headline)
+            Text("直接问一个回顾问题，我会按记录、标签和时间线整理线索。")
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-            TextField("搜一搜：比如“上次什么时候也觉得方向乱？"", text: $query)
-                .textFieldStyle(.plain)
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.secondary)
+                TextField("例如：岗位切换前后，我的心情有变化吗？", text: $query)
+                    .submitLabel(.search)
+                    .textFieldStyle(.plain)
+                    .onSubmit {
+                        performRetrievalSearch()
+                    }
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                Button("分析") {
+                    performRetrievalSearch()
+                }
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(12)
+        .padding(14)
         .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
         .padding(.horizontal, 16)
     }
 
-    private var filterRow: some View {
-        HStack(spacing: 8) {
-            ForEach(SearchFilterType.allCases) { filter in
-                Button {
-                    if filter == .dateRange {
-                        showingDateRangePicker = true
-                    } else {
+    private var filterToolbar: some View {
+        HStack(spacing: 10) {
+            Menu {
+                ForEach(SearchDateRange.allCases) { range in
+                    Button(range.title) {
+                        selectedDateRange = range
+                    }
+                }
+            } label: {
+                filterPill(
+                    title: selectedDateRange == .all ? "时间" : selectedDateRange.title,
+                    systemImage: "calendar"
+                )
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Button("全部分组") {
+                    selectedFilter = nil
+                }
+                ForEach(SearchFilterType.allCases.filter { $0 != .dateRange }) { filter in
+                    Button(filter.title) {
                         selectedFilter = selectedFilter == filter ? nil : filter
                     }
-                } label: {
-                    Text(filterTitle(for: filter))
-                        .font(.footnote)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 10)
-                        .background(filterBackground(for: filter))
-                        .clipShape(Capsule())
                 }
-                .buttonStyle(.plain)
+            } label: {
+                filterPill(
+                    title: selectedFilter?.title ?? "标签组",
+                    systemImage: "tag"
+                )
             }
-        }
-    }
+            .buttonStyle(.plain)
 
-    private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("最近搜索")
-                .font(.headline)
-            ForEach(recentSearches, id: \.self) { item in
-                Button {
-                    query = item
-                } label: {
-                    Text(item)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            if selectedFilter != nil || selectedDateRange != .all {
+                Button("清除") {
+                    selectedFilter = nil
+                    selectedDateRange = .all
                 }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
                 .buttonStyle(.plain)
             }
+
+            Spacer()
         }
     }
 
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if isSearching {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("搜索中…")
+                reviewStatusCard(text: "AI 正在整理记录和标签线索…")
+            } else if let plan = activeRetrievalPlan, plan.mode == .overview {
+                VStack(alignment: .leading, spacing: 12) {
+                    if isLoadingOverviewAIAnalysis {
+                        reviewStatusCard(text: "AI 正在整理这段时间的主要变化…")
+                    } else if let overviewAIAnalysis, !overviewAIAnalysis.isEmpty {
+                        reviewSectionCard(title: "事实与联系", accent: "回顾") {
+                            reviewAnalysisContent(overviewAIAnalysis)
+                        }
+                    }
+
+                    if !results.isEmpty {
+                        relatedRecordsCard
+                    }
+                }
+            } else if let focusedEvidence, let focusedEvidenceText, shouldShowFocusedEvidence(for: focusedEvidence) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if isLoadingFocusedAIAnalysis {
+                        reviewStatusCard(text: "AI 正在分析证据…")
+                    } else if let focusedAIAnalysis, !focusedAIAnalysis.isEmpty {
+                        reviewSectionCard(title: "事实与联系", accent: "回顾") {
+                            reviewAnalysisContent(focusedAIAnalysis)
+                        }
+                    }
+
+                    reviewSectionCard(title: "证据整理", accent: "依据") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(focusedEvidenceText)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+
+                            if !focusedEvidence.topSignals.isEmpty {
+                                compactSignalRow(signals: Array(focusedEvidence.topSignals.prefix(4)))
+                            }
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(focusedEvidence.evidenceGroups.prefix(3)) { group in
+                                    DisclosureGroup(
+                                        isExpanded: Binding(
+                                            get: { expandedEvidenceGroupIDs.contains(group.id) },
+                                            set: { isExpanded in
+                                                if isExpanded {
+                                                    expandedEvidenceGroupIDs.insert(group.id)
+                                                } else {
+                                                    expandedEvidenceGroupIDs.remove(group.id)
+                                                }
+                                            }
+                                        )
+                                    ) {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(group.rationale)
+                                                .font(.footnote)
+                                                .foregroundStyle(.secondary)
+                                            ForEach(Array(group.units.prefix(3))) { unit in
+                                                Text("• \(unit.summary)")
+                                                    .font(.footnote)
+                                                    .foregroundStyle(.primary)
+                                            }
+                                        }
+                                        .padding(.top, 6)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(group.title)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(.primary)
+                                            Text(group.units.prefix(2).map(\.summary).joined(separator: "；"))
+                                                .font(.footnote)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let errorMessage, !errorMessage.isEmpty {
+                reviewSectionCard(title: "回顾结果", accent: "提示") {
+                    Text(errorMessage)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-            } else if let errorMessage {
-                Text(errorMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             } else if results.isEmpty, shouldShowEmptyState {
-                Text("没找到相关记录")
-                    .font(.subheadline)
-                Text("试试换个关键词／选择标签／扩大时间范围。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                reviewSectionCard(title: "没有足够的回顾材料", accent: "空") {
+                    Text("试试把问题问得更具体，或调整时间范围、标签组。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             } else if !results.isEmpty {
-                Text("结果")
-                    .font(.headline)
-
-                ForEach(groupedResults, id: \.date) { group in
+                relatedRecordsCard
+            } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                reviewSectionCard(title: "可以这样问", accent: "示例") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(formattedSectionDate(group.date))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        ForEach(group.items) { result in
-                            SearchResultCard(result: result, onTagTap: { tag in
-                                query = tag
-                            }, onSelect: {
-                                handleSelection(result)
-                            })
-                        }
+                        starterPrompt("我过去一周主要发生了什么变化")
+                        starterPrompt("岗位切换前后，我的心情有变化吗")
+                        starterPrompt("最近胃口不好，和工作压力有没有关系")
                     }
                 }
             }
@@ -184,18 +296,39 @@ struct SearchScreen: View {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedFilter != nil || selectedDateRange != .all
     }
 
-    private func filterTitle(for filter: SearchFilterType) -> String {
-        if filter == .dateRange {
-            return selectedDateRange == .all ? filter.title : "日期范围·\(selectedDateRange.title)"
+    private var relatedRecordsCard: some View {
+        reviewSectionCard(title: "相关记录", accent: "\(results.count)条") {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(groupedResults, id: \.date) { group in
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let day = dayForGroup(group) {
+                            NavigationLink(value: day) {
+                                Text(formattedSectionDate(group.date))
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(formattedSectionDate(group.date))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        ForEach(group.items) { result in
+                            SearchResultCard(result: result, onTagTap: { tag in
+                                query = tag
+                            }, onSelect: {
+                                handleSelection(result)
+                            })
+                        }
+                    }
+                }
+            }
         }
-        return filter.title
     }
 
-    private func filterBackground(for filter: SearchFilterType) -> Color {
-        if filter == selectedFilter {
-            return Color(.systemGray4)
-        }
-        return Color(.systemGray6)
+    private var shouldAutoRefreshAIReview: Bool {
+        isUsingRetrievalPlan && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func handleSelection(_ result: SearchResultItem) {
@@ -207,63 +340,119 @@ struct SearchScreen: View {
         }
     }
 
-    private func performSearch() {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        errorMessage = nil
+    private func dayForGroup(_ group: (date: Date, items: [SearchResultItem])) -> TimelineDay? {
+        guard !group.items.isEmpty else { return nil }
+        let highlights = group.items.map { $0.snippet }.prefix(6)
+        let captureIDs = group.items.compactMap { item in
+            switch item.source {
+            case .capture(let capture):
+                return capture.id
+            case .atom(let atom):
+                return atom.captureID
+            }
+        }
+        return TimelineDay(
+            id: UUID(),
+            date: group.date,
+            highlights: Array(highlights),
+            highlightCaptureIDs: Array(captureIDs.prefix(6)),
+            hasNarrative: group.items.count >= 3
+        )
+    }
 
-        if trimmedQuery.isEmpty, selectedFilter == nil, selectedDateRange == .all {
-            results = []
+    private func performRetrievalSearch() {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            resetAIReviewOutput()
             return
         }
 
+        isUsingRetrievalPlan = true
         isSearching = true
+        errorMessage = nil
+        focusedEvidence = nil
+        focusedEvidenceText = nil
+        expandedEvidenceGroupIDs = []
+        focusedAIAnalysis = nil
+        isLoadingFocusedAIAnalysis = false
+        overviewNarrativeMaterial = nil
+        overviewAIAnalysis = nil
+        isLoadingOverviewAIAnalysis = false
+        followupInput = ""
+        followupMessages = []
+        isLoadingFollowup = false
+        showAllFollowups = false
 
-        let datePredicate = dateRangePredicate()
-        do {
-            let matchedTagIDs = fetchTagIDs(matching: trimmedQuery)
-            let atomIDsFromTags = fetchAtomIDs(tagIDs: matchedTagIDs)
-            let atomsFromContent = fetchAtoms(matching: trimmedQuery, datePredicate: datePredicate)
-            let atomsFromTags = fetchAtoms(atomIDs: atomIDsFromTags, datePredicate: datePredicate)
+        let builder = RetrievalPlanBuilder(tagLibrary: loadVisibleTagLibrary())
+        var plan = builder.build(query: trimmedQuery, timeRangeOverride: selectedDateRange.retrievalTimeRange)
 
-            let atomEntities = mergeAtoms(atomsFromContent, atomsFromTags)
-            let atomItems = makeAtomItems(from: atomEntities)
-
-            let capturesFromContent = fetchCaptures(matching: trimmedQuery, datePredicate: datePredicate)
-            let captureItems = capturesFromContent.map { makeCaptureItem(from: $0) }
-
-            let captureResults = captureItems.map { item in
-                SearchResultItem(
-                    id: item.id,
-                    date: item.createdAt,
-                    timeText: formattedTime(item.createdAt),
-                    snippet: item.cleanText ?? item.rawText,
-                    tags: [],
-                    source: .capture(item)
-                )
-            }
-
-            let atomResults = atomItems.map { atom in
-                SearchResultItem(
-                    id: atom.id,
-                    date: atomDate(for: atom, fallback: Date()),
-                    timeText: formattedTime(atomDate(for: atom, fallback: Date())),
-                    snippet: atom.content,
-                    tags: atom.tags.map { $0.name },
-                    source: .atom(atom)
-                )
-            }
-
-            results = (captureResults + atomResults)
-                .filter { item in
-                    matchesFilter(item)
+        if let selectedFilter, let tagType = selectedFilter.tagType {
+            let selectedMatches = fetchVisibleTagNames(type: tagType)
+                .filter { name in
+                    trimmedQuery.localizedCaseInsensitiveContains(name) || name.localizedCaseInsensitiveContains(trimmedQuery)
                 }
-                .sorted { $0.date > $1.date }
-        } catch {
-            errorMessage = "搜索不可用"
-            results = []
+                .map { name in
+                    RetrievalTagFilter(type: tagType, name: name, strength: 1.2, source: .explicit)
+                }
+
+            plan = RetrievalPlan(
+                mode: plan.mode,
+                questionShape: plan.questionShape,
+                query: plan.query,
+                timeRange: plan.timeRange,
+                focusAnchor: plan.focusAnchor,
+                relationAnchors: plan.relationAnchors,
+                primaryFilters: selectedMatches.isEmpty ? plan.primaryFilters : selectedMatches,
+                secondaryFilters: plan.secondaryFilters,
+                tagScopeWeights: plan.tagScopeWeights,
+                rankingWeights: plan.rankingWeights,
+                compressionPolicy: plan.compressionPolicy
+            )
         }
 
+        activeRetrievalPlan = plan
+        let service = ReviewRetrievalService(context: context)
+        if plan.mode == .focused {
+            let evidence = service.makeFocusedEvidence(query: trimmedQuery, timeRangeOverride: selectedDateRange.retrievalTimeRange)
+            if shouldShowFocusedEvidence(for: evidence) {
+                focusedEvidence = evidence
+                focusedEvidenceText = service.makeFocusedEvidenceText(from: evidence)
+                expandedEvidenceGroupIDs = []
+                requestFocusedAIAnalysis(for: evidence, followupQuestion: nil)
+            }
+        } else {
+            let brief = MemoryIndexStore(context: context).buildNarrativeBrief(plan: plan)
+            let material = service.makeNarrativeMaterial(from: brief)
+            if !material.representativeUnits.isEmpty {
+                overviewNarrativeMaterial = material
+                requestOverviewAIAnalysis(for: material, label: plan.timeRange.label, followupQuestion: nil)
+            }
+        }
+        let snapshots = MemoryIndexStore(context: context).search(plan: plan)
+        results = snapshots.compactMap { makeRetrievalResult(from: $0, plan: plan) }
+        if results.isEmpty {
+            errorMessage = "没有找到足够相关的记录，可以换个问题、时间范围或标签组再试。"
+        }
         isSearching = false
+    }
+
+    private func resetAIReviewOutput() {
+        isUsingRetrievalPlan = false
+        activeRetrievalPlan = nil
+        errorMessage = nil
+        results = []
+        focusedEvidence = nil
+        focusedEvidenceText = nil
+        expandedEvidenceGroupIDs = []
+        focusedAIAnalysis = nil
+        isLoadingFocusedAIAnalysis = false
+        overviewNarrativeMaterial = nil
+        overviewAIAnalysis = nil
+        isLoadingOverviewAIAnalysis = false
+        followupInput = ""
+        followupMessages = []
+        isLoadingFollowup = false
+        showAllFollowups = false
     }
 
     private func matchesFilter(_ item: SearchResultItem) -> Bool {
@@ -274,6 +463,347 @@ struct SearchScreen: View {
             return atom.tags.contains { $0.type == requiredType }
         case .capture:
             return false
+        }
+    }
+
+    private func shouldShowFocusedEvidence(for bundle: FocusedEvidenceBundle) -> Bool {
+        bundle.plan.mode == .focused && !bundle.evidenceGroups.isEmpty
+    }
+
+    private func requestFocusedAIAnalysis(for bundle: FocusedEvidenceBundle, followupQuestion: String?) {
+        if followupQuestion == nil {
+            isLoadingFocusedAIAnalysis = true
+            focusedAIAnalysis = nil
+        } else {
+            isLoadingFollowup = true
+        }
+        Task {
+            do {
+                let analysis = try await AIServiceFactory.make().analyzeFocusedEvidence(bundle, followupQuestion: followupQuestion)
+                await MainActor.run {
+                    let normalized = analysis.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let followupQuestion {
+                        followupMessages.append(ReviewFollowupMessage(question: followupQuestion, answer: normalized))
+                        followupInput = ""
+                        isLoadingFollowup = false
+                        showAllFollowups = false
+                    } else {
+                        focusedAIAnalysis = normalized
+                        isLoadingFocusedAIAnalysis = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    if followupQuestion == nil {
+                        focusedAIAnalysis = nil
+                        isLoadingFocusedAIAnalysis = false
+                    } else {
+                        isLoadingFollowup = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func requestOverviewAIAnalysis(for material: NarrativeMaterial, label: String, followupQuestion: String?) {
+        if followupQuestion == nil {
+            isLoadingOverviewAIAnalysis = true
+            overviewAIAnalysis = nil
+        } else {
+            isLoadingFollowup = true
+        }
+        Task {
+            do {
+                let analysis = try await AIServiceFactory.make().analyzeNarrativeMaterial(material, periodName: label, followupQuestion: followupQuestion)
+                await MainActor.run {
+                    let normalized = analysis.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let followupQuestion {
+                        followupMessages.append(ReviewFollowupMessage(question: followupQuestion, answer: normalized))
+                        followupInput = ""
+                        isLoadingFollowup = false
+                        showAllFollowups = false
+                    } else {
+                        overviewAIAnalysis = normalized
+                        isLoadingOverviewAIAnalysis = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    if followupQuestion == nil {
+                        overviewAIAnalysis = nil
+                        isLoadingOverviewAIAnalysis = false
+                    } else {
+                        isLoadingFollowup = false
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func reviewAnalysisContent(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            reviewBubble(text: text, isUser: false)
+
+            if !suggestedFollowups.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("可继续问")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(suggestedFollowups, id: \.self) { item in
+                                Button(item) {
+                                    submitFollowup(item)
+                                }
+                                .font(.footnote)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !followupMessages.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    if olderFollowupCount > 0 {
+                        Button(showAllFollowups ? "收起较早追问" : "展开更早 \(olderFollowupCount) 轮") {
+                            showAllFollowups.toggle()
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                    }
+
+                    ForEach(displayedFollowupMessages) { message in
+                        VStack(alignment: .leading, spacing: 8) {
+                            reviewBubble(text: message.question, isUser: true)
+                            reviewBubble(text: message.answer, isUser: false)
+                        }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("继续追问")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    TextField("继续问这次回顾…", text: $followupInput)
+                        .textFieldStyle(.roundedBorder)
+                    Button("发送") {
+                        submitFollowup(followupInput)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(followupInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoadingFollowup)
+                }
+                if isLoadingFollowup {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("AI 正在结合当前回顾材料继续分析…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func reviewBubble(text: String, isUser: Bool) -> some View {
+        HStack {
+            if isUser {
+                Spacer(minLength: 36)
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.blue.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            } else {
+                Group {
+                    let sections = parsedReviewSections(from: text)
+                    if !sections.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(sections, id: \.title) { section in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(section.title)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text(section.body)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    } else {
+                        Text(text)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+                Spacer(minLength: 36)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func parsedReviewSections(from text: String) -> [ReviewSection] {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let labels = ["事实：", "联系：", "可继续问："]
+        guard labels.contains(where: { normalized.contains($0) }) else { return [] }
+
+        var sections: [ReviewSection] = []
+        let lines = normalized
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for line in lines {
+            if let label = labels.first(where: { line.hasPrefix($0) }) {
+                let title = String(label.dropLast())
+                let body = line.replacingOccurrences(of: label, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                sections.append(ReviewSection(title: title, body: body))
+            } else if var last = sections.popLast() {
+                last.body += "\n" + line
+                sections.append(last)
+            }
+        }
+
+        return sections
+    }
+
+    private var suggestedFollowups: [String] {
+        guard let plan = activeRetrievalPlan else { return [] }
+        switch plan.mode {
+        case .overview:
+            return overviewSuggestedFollowups(for: plan)
+        case .focused:
+            return focusedSuggestedFollowups(for: plan)
+        }
+    }
+
+    private var displayedFollowupMessages: [ReviewFollowupMessage] {
+        if showAllFollowups || followupMessages.count <= 2 {
+            return followupMessages
+        }
+        return Array(followupMessages.suffix(2))
+    }
+
+    private var olderFollowupCount: Int {
+        max(followupMessages.count - displayedFollowupMessages.count, 0)
+    }
+
+    private func overviewSuggestedFollowups(for plan: RetrievalPlan) -> [String] {
+        var candidates: [String] = []
+
+        if let material = overviewNarrativeMaterial {
+            if let firstTheme = material.primaryThemes.first, firstTheme.count <= 12 {
+                candidates.append("\(firstTheme)这条线最近有什么变化")
+            }
+            if material.primaryThemes.count >= 2 {
+                let first = material.primaryThemes[0]
+                let second = material.primaryThemes[1]
+                if first.count <= 12, second.count <= 12 {
+                    candidates.append("\(first)和\(second)之间有关系吗")
+                }
+            }
+            if !material.changeSignals.isEmpty {
+                candidates.append("哪条变化最值得继续看")
+            }
+            if let pattern = material.repeatedPatterns.first, pattern.count <= 18 {
+                candidates.append("\(pattern)是不是这周反复出现")
+            } else {
+                candidates.append("这些变化和状态有没有关系")
+            }
+        }
+
+        if candidates.isEmpty {
+            candidates = [
+                "这周最明显的变化是什么",
+                "哪些线索最值得继续看",
+                "这些变化和状态有没有关系"
+            ]
+        }
+
+        return deduplicatedFollowups(candidates, limit: 3, excluding: plan.query)
+    }
+
+    private func focusedSuggestedFollowups(for plan: RetrievalPlan) -> [String] {
+        var candidates: [String] = []
+
+        switch plan.questionShape {
+        case .comparison:
+            if let anchor = plan.focusAnchor, anchor.count <= 14 {
+                candidates.append("\(anchor)前后最明显的差别是什么")
+                candidates.append("哪些记录最能说明\(anchor)前后的变化")
+                candidates.append("还缺哪些和\(anchor)有关的记录")
+            }
+        case .relation:
+            if plan.relationAnchors.count >= 2 {
+                let first = plan.relationAnchors[0]
+                let second = plan.relationAnchors[1]
+                if first.count <= 12, second.count <= 12 {
+                    candidates.append("\(first)和\(second)一起出现得多吗")
+                    candidates.append("哪些记录最能说明\(first)和\(second)的关系")
+                    candidates.append("如果只看最近记录，这种关系还明显吗")
+                }
+            }
+        default:
+            if let groupTitle = focusedEvidence?.evidenceGroups.first?.title {
+                candidates.append("\(groupTitle)里最关键的证据是什么")
+            }
+            if let signal = focusedEvidence?.topSignals.first, signal.count <= 16 {
+                candidates.append("\(signal)和当前问题的关系更强吗")
+            }
+            candidates.append("还缺什么证据")
+        }
+
+        if candidates.isEmpty {
+            candidates = [
+                "有哪些证据最支持这个判断",
+                "前后对比最明显的地方是什么",
+                "还缺什么证据"
+            ]
+        }
+
+        return deduplicatedFollowups(candidates, limit: 3, excluding: plan.query)
+    }
+
+    private func deduplicatedFollowups(_ items: [String], limit: Int, excluding query: String) -> [String] {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen: Set<String> = []
+        return items
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter {
+                !$0.isEmpty &&
+                $0 != normalizedQuery &&
+                seen.insert($0).inserted
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func submitFollowup(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isLoadingFollowup else { return }
+        if let bundle = focusedEvidence, shouldShowFocusedEvidence(for: bundle) {
+            requestFocusedAIAnalysis(for: bundle, followupQuestion: trimmed)
+            return
+        }
+        if let material = overviewNarrativeMaterial, let plan = activeRetrievalPlan {
+            requestOverviewAIAnalysis(for: material, label: plan.timeRange.label, followupQuestion: trimmed)
         }
     }
 
@@ -332,15 +862,24 @@ struct SearchScreen: View {
     }
 
     private func fetchTagIDs(matching query: String) -> [UUID] {
-        guard !query.isEmpty else { return [] }
+        if query.isEmpty, selectedFilter?.tagType == nil {
+            return []
+        }
         let request = NSFetchRequest<TagEntity>(entityName: "TagEntity")
-        var predicates: [NSPredicate] = [NSPredicate(format: "name CONTAINS[cd] %@", query)]
+        var predicates: [NSPredicate] = []
+
+        if !query.isEmpty {
+            predicates.append(NSPredicate(format: "name CONTAINS[cd] %@", query))
+        }
 
         if let selectedFilter, let type = selectedFilter.tagType {
             predicates.append(NSPredicate(format: "type == %@", type.rawValue))
         }
+        predicates.append(NSPredicate(format: "isUserVisible == YES"))
 
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        if !predicates.isEmpty {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        }
         return (try? context.fetch(request).map { $0.id }) ?? []
     }
 
@@ -366,14 +905,19 @@ struct SearchScreen: View {
         let tagMap = fetchTagMap(atomIDs: atomIDs)
 
         return atoms.map { atom in
-            AtomItem(
+            let startChar = atom.startChar >= 0 ? Int(atom.startChar) : nil
+            let endChar = atom.endChar >= 0 ? Int(atom.endChar) : nil
+            return AtomItem(
                 id: atom.id,
                 captureID: atom.captureID,
                 type: AtomType(rawValue: atom.type) ?? .event,
                 content: atom.content,
                 orderInCapture: Int(atom.orderInCapture),
                 isKey: atom.isKey,
-                tags: tagMap[atom.id] ?? []
+                tags: tagMap[atom.id] ?? [],
+                startChar: startChar,
+                endChar: endChar,
+                atomizeVersion: atom.atomizeVersion
             )
         }
     }
@@ -387,14 +931,21 @@ struct SearchScreen: View {
         guard let links = try? context.fetch(linkRequest) else { return [:] }
         let tagIDs = links.map { $0.tagID }
         let tagRequest = NSFetchRequest<TagEntity>(entityName: "TagEntity")
-        tagRequest.predicate = NSPredicate(format: "id IN %@", tagIDs)
+        tagRequest.predicate = NSPredicate(format: "id IN %@ AND isUserVisible == YES", tagIDs)
 
         guard let tags = try? context.fetch(tagRequest) else { return [:] }
 
         let tagMap = Dictionary(uniqueKeysWithValues: tags.map { tag in
             (
                 tag.id,
-                TagItem(id: tag.id, name: tag.name, type: TagType(rawValue: tag.type) ?? .project, isCommon: tag.isCommon)
+                TagItem(
+                    id: tag.id,
+                    name: tag.name,
+                    type: TagType(rawValue: tag.type) ?? .project,
+                    isCommon: tag.isCommon,
+                    isSuggested: false,
+                    isUserVisible: true
+                )
             )
         })
 
@@ -402,6 +953,72 @@ struct SearchScreen: View {
             guard let tag = tagMap[link.tagID] else { return }
             result[link.atomID, default: []].append(tag)
         }
+    }
+
+    private func fetchVisibleTagNames(type: TagType) -> [String] {
+        let request = NSFetchRequest<TagEntity>(entityName: "TagEntity")
+        request.predicate = NSPredicate(format: "isUserVisible == YES AND type == %@", type.rawValue)
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        return ((try? context.fetch(request)) ?? []).map(\.name)
+    }
+
+    private func loadVisibleTagLibrary() -> TagLibrary {
+        TagLibrary(
+            project: fetchVisibleTagNames(type: .project),
+            habit: fetchVisibleTagNames(type: .habit),
+            theme: fetchVisibleTagNames(type: .theme),
+            person: fetchVisibleTagNames(type: .person),
+            goal: fetchVisibleTagNames(type: .goal),
+            context: fetchVisibleTagNames(type: .context)
+        )
+    }
+
+    private func makeRetrievalResult(from snapshot: IndexedCaptureSnapshot, plan: RetrievalPlan) -> SearchResultItem? {
+        let request = NSFetchRequest<CaptureEntity>(entityName: "CaptureEntity")
+        request.predicate = NSPredicate(format: "id == %@", snapshot.id as CVarArg)
+        guard let entity = try? context.fetch(request).first else { return nil }
+        let item = makeCaptureItem(from: entity)
+        let topUnit = snapshot.units.first?.summary ?? snapshot.cleanText
+        let tags = Array(snapshot.visibleTags.map(\.name).prefix(3))
+        return SearchResultItem(
+            id: item.id,
+            date: item.createdAt,
+            timeText: formattedTime(item.createdAt),
+            snippet: topUnit,
+            tags: tags,
+            hitReason: makeHitReason(for: snapshot, plan: plan),
+            source: .capture(item)
+        )
+    }
+
+    private func makeHitReason(for snapshot: IndexedCaptureSnapshot, plan: RetrievalPlan) -> String? {
+        let visibleNames = Set(snapshot.visibleTags.map(\.name))
+        let hiddenNames = Set(snapshot.hiddenTags.map(\.name))
+        let hintNames = Set(snapshot.tagHints)
+
+        let primaryVisible = plan.primaryFilters
+            .filter { visibleNames.contains($0.name) }
+            .map(\.name)
+        if !primaryVisible.isEmpty {
+            return "命中标签：\(primaryVisible.prefix(2).joined(separator: "、"))"
+        }
+
+        let primaryHidden = plan.primaryFilters
+            .filter { hiddenNames.contains($0.name) || hintNames.contains($0.name) }
+            .map(\.name)
+        if !primaryHidden.isEmpty {
+            return "命中隐性线索：\(primaryHidden.prefix(2).joined(separator: "、"))"
+        }
+
+        if let firstResult = snapshot.units.first?.resultOrState.first {
+            return "关联结果：\(firstResult)"
+        }
+
+        if let firstTag = snapshot.visibleTags.first?.name {
+            return "相关标签：\(firstTag)"
+        }
+
+        return activeRetrievalPlan?.mode == .overview ? "按近期变化召回" : "按相关性召回"
     }
 
     private func makeCaptureItem(from entity: CaptureEntity) -> CaptureItem {
@@ -420,7 +1037,9 @@ struct SearchScreen: View {
             inputType: CaptureInputType(rawValue: entity.inputType ?? CaptureInputType.text.rawValue) ?? .text,
             audioPath: entity.audioPath,
             transcriptText: entity.transcriptText,
-            transcriptionStatus: TranscriptionStatus(rawValue: entity.transcriptionStatus ?? "")
+            transcriptionStatus: TranscriptionStatus(rawValue: entity.transcriptionStatus ?? ""),
+            transcriptionErrorReason: entity.transcriptionError,
+            isTranscriptionActive: false
         )
     }
 
@@ -447,6 +1066,87 @@ struct SearchScreen: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日"
         return formatter.string(from: date)
+    }
+
+    private func filterPill(title: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption)
+            Text(title)
+                .font(.footnote.weight(.medium))
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color(.systemBackground))
+        .clipShape(Capsule())
+    }
+
+    private func reviewStatusCard(text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func reviewSectionCard<Content: View>(title: String, accent: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Text(accent)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func compactSignalRow(signals: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(signals, id: \.self) { signal in
+                    Text(signal)
+                        .font(.caption)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 10)
+                        .background(Color(.systemGray6))
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
+    private func starterPrompt(_ text: String) -> some View {
+        Button {
+            submitStarterPrompt(text)
+        } label: {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func submitStarterPrompt(_ text: String) {
+        suppressQueryReset = true
+        query = text
+        performRetrievalSearch()
     }
 }
 
@@ -480,6 +1180,12 @@ private struct SearchResultCard: View {
                         .buttonStyle(.plain)
                     }
                 }
+            }
+
+            if let hitReason = result.hitReason, !hitReason.isEmpty {
+                Text(hitReason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(12)
@@ -538,4 +1244,20 @@ private enum SearchDateRange: String, CaseIterable, Identifiable {
 
         return (start: start, end: end)
     }
+
+    var retrievalTimeRange: RetrievalTimeRange? {
+        guard let range = dateRange else { return nil }
+        return RetrievalTimeRange(start: range.start, end: range.end, label: title)
+    }
+}
+
+private struct ReviewFollowupMessage: Identifiable {
+    let id = UUID()
+    let question: String
+    let answer: String
+}
+
+private struct ReviewSection {
+    let title: String
+    var body: String
 }
