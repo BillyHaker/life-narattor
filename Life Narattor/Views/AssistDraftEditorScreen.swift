@@ -91,7 +91,7 @@ struct AssistDraftEditorScreen: View {
                 onConfirmRecord(cleanedTitle, cleanedBody)
                 dismiss()
             } label: {
-                Text("确认记录")
+                Text("确认记录并写入")
                     .font(.headline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -104,6 +104,11 @@ struct AssistDraftEditorScreen: View {
             )
             .opacity(cleanedTitle.isEmpty && cleanedBody.isEmpty ? 0.5 : 1)
             .disabled(cleanedTitle.isEmpty && cleanedBody.isEmpty)
+
+            Text("确认后会正式写入记录，并继续进入拆分和标签流程。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 12) {
                 secondaryActionButton(
@@ -130,14 +135,21 @@ struct AssistDraftEditorScreen: View {
     }
 
     private var draftMetaCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("来自助手对话")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            if !payload.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("先看一眼草稿，再决定是否写入记录。确认后才会进入拆分和标签。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+
+            Text("先看一眼草稿，再决定是否写入记录。确认后才会进入拆分和标签。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                draftMetaPill("整理段落 \(payload.card.effectiveRecordUnits.count)")
+                if !payload.card.tagSuggestions.isEmpty {
+                    draftMetaPill("标签建议 \(payload.card.tagSuggestions.count)")
+                }
+                draftMetaPill("置信度 \(payload.card.confidence)")
             }
         }
         .padding(12)
@@ -152,6 +164,16 @@ struct AssistDraftEditorScreen: View {
 
     private var cleanedBody: String {
         bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func draftMetaPill(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(Capsule())
     }
 
     private func secondaryActionButton(

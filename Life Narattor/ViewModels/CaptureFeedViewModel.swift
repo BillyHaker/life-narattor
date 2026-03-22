@@ -408,6 +408,7 @@ final class CaptureFeedViewModel: ObservableObject {
 
         closeThread(threadID: threadID)
         createNewAssistThread()
+        showRecordingNotice("已写入记录，接下来会继续整理拆分和标签")
     }
 
     func resetAssistSession() {
