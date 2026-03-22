@@ -27,6 +27,7 @@ struct SearchScreen: View {
     @State private var isLoadingFollowup = false
     @State private var showAllFollowups = false
     @State private var suppressQueryReset = false
+    @State private var expandedReviewSectionIDs: Set<String> = []
 
     init(initialQuery: String = "", initialFilter: SearchFilterType? = nil) {
         _query = State(initialValue: initialQuery)
@@ -382,6 +383,7 @@ struct SearchScreen: View {
         followupMessages = []
         isLoadingFollowup = false
         showAllFollowups = false
+        expandedReviewSectionIDs = []
 
         let builder = RetrievalPlanBuilder(tagLibrary: loadVisibleTagLibrary())
         var plan = builder.build(query: trimmedQuery, timeRangeOverride: selectedDateRange.retrievalTimeRange)
@@ -453,6 +455,7 @@ struct SearchScreen: View {
         followupMessages = []
         isLoadingFollowup = false
         showAllFollowups = false
+        expandedReviewSectionIDs = []
     }
 
     private func matchesFilter(_ item: SearchResultItem) -> Bool {
@@ -628,15 +631,8 @@ struct SearchScreen: View {
                     let sections = parsedReviewSections(from: text)
                     if !sections.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            ForEach(sections, id: \.title) { section in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(section.title)
-                                        .font(.footnote.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text(section.body)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.primary)
-                                }
+                            ForEach(sections) { section in
+                                reviewSectionBlock(section)
                             }
                         }
                         .padding(.horizontal, 12)
@@ -683,6 +679,75 @@ struct SearchScreen: View {
 
         return sections
     }
+    @ViewBuilder
+    private func reviewSectionBlock(_ section: ReviewSection) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(section.title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if section.title == "可继续问", let prompts = parsedPromptList(from: section.body), !prompts.isEmpty {
+                followupPromptWrap(prompts)
+            } else {
+                let isExpanded = expandedReviewSectionIDs.contains(section.id)
+                Text(section.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .lineSpacing(3)
+                    .lineLimit(shouldCollapseReviewSection(section) && !isExpanded ? 4 : nil)
+
+                if shouldCollapseReviewSection(section) {
+                    Button(isExpanded ? "收起" : "展开") {
+                        if isExpanded {
+                            expandedReviewSectionIDs.remove(section.id)
+                        } else {
+                            expandedReviewSectionIDs.insert(section.id)
+                        }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.blue)
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func shouldCollapseReviewSection(_ section: ReviewSection) -> Bool {
+        section.body.count > 90 || section.body.split(separator: Character("\n")).count > 2
+    }
+
+    private func parsedPromptList(from text: String) -> [String]? {
+        let normalized = text
+            .replacingOccurrences(of: String(Character("\n")), with: " ")
+            .replacingOccurrences(of: "？", with: "？|")
+            .replacingOccurrences(of: "?", with: "?|")
+        let prompts = normalized
+            .split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { $0.hasSuffix("？") || $0.hasSuffix("?") ? $0 : $0 + "？" }
+        return prompts.isEmpty ? nil : Array(prompts.prefix(3))
+    }
+
+    @ViewBuilder
+    private func followupPromptWrap(_ prompts: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(prompts, id: \.self) { prompt in
+                Button(prompt) {
+                    submitFollowup(prompt)
+                }
+                .font(.footnote)
+                .foregroundStyle(.blue)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.blue.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
 
     private var suggestedFollowups: [String] {
         guard let plan = activeRetrievalPlan else { return [] }
@@ -1257,7 +1322,9 @@ private struct ReviewFollowupMessage: Identifiable {
     let answer: String
 }
 
-private struct ReviewSection {
+private struct ReviewSection: Identifiable {
     let title: String
     var body: String
+
+    var id: String { "\(title)|\(body)" }
 }
