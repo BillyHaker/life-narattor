@@ -975,12 +975,13 @@ async function handleTags(body) {
 
     const output = await callOpenAI({
         instructions: "Return JSON only. Suggest at most one visible tag. Also return 2-5 hidden suggestions by default unless the material is truly too weak. Work from record units first, then use semantic chunks as supporting detail. Treat tag_hints inside each record unit as the strongest retrieval cues. Prefer reusing an existing visible tag from the provided tag library whenever there is a close semantic match. Only suggest a new visible tag when no existing visible tag is close enough. hidden_suggestions should be richer than visible suggestions and should usually include concrete themes, states, contexts, habits, or retrieval clues that help later recall. hidden_suggestions must still be short noun or noun-phrase tags. Do not output sentence-like labels.",
+        instructions: "Return JSON only. Return an empty suggestions array. Also return 2-5 hidden suggestions by default unless the material is truly too weak. Work from record units first, then use semantic chunks as supporting detail. Treat tag_hints inside each record unit as the strongest retrieval cues. hidden_suggestions should be richer than visible suggestions and should usually include concrete themes, states, contexts, habits, or retrieval clues that help later recall. hidden_suggestions must still be short noun or noun-phrase tags. Do not output sentence-like labels.",
         userInput: JSON.stringify({
             semantic_chunks: semanticChunks,
             record_units: recordUnits,
             existing_visible_tags: existingVisibleTags,
             policy: body?.policy || {
-                max_visible_suggestions: 1,
+                max_visible_suggestions: 0,
                 target_hidden_suggestions: 4,
                 prefer_existing_visible_tags: true,
                 only_create_new_visible_tag_if_no_close_match: true

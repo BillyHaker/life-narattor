@@ -151,15 +151,21 @@ struct AtomTagStore {
 
         guard let tags = try? context.fetch(tagRequest) else { return [:] }
         let tagMap = Dictionary(uniqueKeysWithValues: tags.map { tag in
-            (
-                tag.id,
-                TagItem(id: tag.id, name: tag.name, type: TagType(rawValue: tag.type) ?? .project, isCommon: tag.isCommon)
-            )
+            (tag.id, tag)
         })
 
         return links.reduce(into: [:]) { result, link in
             guard let tag = tagMap[link.tagID] else { return }
-            result[link.atomID, default: []].append(tag)
+            guard tag.isUserVisible, !link.isSuggested else { return }
+            let item = TagItem(
+                id: tag.id,
+                name: tag.name,
+                type: TagType(rawValue: tag.type) ?? .project,
+                isCommon: tag.isCommon,
+                isSuggested: link.isSuggested,
+                isUserVisible: tag.isUserVisible
+            )
+            result[link.atomID, default: []].append(item)
         }
     }
 
