@@ -1015,15 +1015,18 @@ final class CaptureFeedViewModel: ObservableObject {
         let normalizedReply = normalizeAssistReply(payload.reply, questionText: effectiveQuestion, messages: messages)
         let normalizedKeyPoints = normalizeAssistKeyPoints(payload.card.keyPoints)
         let normalizedNextSteps = normalizeAssistNextSteps(payload.card.nextSteps)
+        let normalizedTitle = normalizeAssistDraftTitle(payload.card.title, questionText: effectiveQuestion)
+        let normalizedContext = normalizeAssistDraftNarration(payload.card.context)
+        let normalizedRecordUnits = payload.card.recordUnits.compactMap { normalizeAssistRecordUnit($0) }
 
         return AssistArchivePayload(
             reply: normalizedReply,
             card: AssistArchiveCard(
-                title: payload.card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? draftTitle(for: effectiveQuestion) : payload.card.title,
-                context: payload.card.context,
+                title: normalizedTitle,
+                context: normalizedContext,
                 keyPoints: normalizedKeyPoints,
                 nextSteps: normalizedNextSteps,
-                recordUnits: payload.card.recordUnits,
+                recordUnits: normalizedRecordUnits,
                 tagSuggestions: payload.card.tagSuggestions,
                 confidence: payload.card.confidence
             ),
@@ -1041,6 +1044,75 @@ final class CaptureFeedViewModel: ObservableObject {
         var normalized = stripMetaFiller(trimmed, questionText: effectiveQuestion)
         normalized = stripRepeatedWhitespace(normalized)
         return normalized.isEmpty ? "我先没接住这句，你换个说法再发一次。" : normalized
+    }
+
+    private func normalizeAssistDraftTitle(_ title: String, questionText: String) -> String {
+        var normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return draftTitle(for: questionText)
+        }
+
+        normalized = normalized
+            .replacingOccurrences(of: "总结", with: "整理")
+            .replacingOccurrences(of: "摘要", with: "整理")
+            .replacingOccurrences(of: "纪要", with: "记录")
+            .replacingOccurrences(of: "用户咨询", with: "")
+            .replacingOccurrences(of: "助手对话", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "：:- ").union(.whitespacesAndNewlines))
+
+        if normalized.isEmpty {
+            return draftTitle(for: questionText)
+        }
+        return normalized
+    }
+
+    private func normalizeAssistDraftNarration(_ text: String) -> String {
+        var normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return normalized }
+
+        let replacements: [(String, String)] = [
+            ("用户咨询", "这次整理围绕"),
+            ("用户询问", "这次整理围绕"),
+            ("用户讨论", "这次整理围绕"),
+            ("用户提到", "这次整理提到"),
+            ("用户想知道", "这次整理围绕"),
+            ("用户考虑", "这次整理围绕"),
+            ("助手建议", "这里也提到"),
+            ("助手解释", "这里也梳理了"),
+            ("助手指出", "这里也提到"),
+            ("助手提醒", "这里也提醒"),
+            ("助手认为", "这里更偏向"),
+            ("本次对话中", ""),
+            ("对话中", ""),
+            ("用户", ""),
+            ("助手", "")
+        ]
+
+        replacements.forEach { source, target in
+            normalized = normalized.replacingOccurrences(of: source, with: target)
+        }
+
+        normalized = normalized
+            .replacingOccurrences(of: "  ", with: " ")
+            .replacingOccurrences(of: "。。", with: "。")
+            .replacingOccurrences(of: "，，", with: "，")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return normalized
+    }
+
+    private func normalizeAssistRecordUnit(_ unit: AssistRecordUnit) -> AssistRecordUnit? {
+        let title = normalizeAssistDraftTitle(unit.title, questionText: unit.summary)
+        let summary = normalizeAssistDraftNarration(unit.summary)
+        let keyPoints = unit.keyPoints.map(normalizeAssistDraftNarration)
+        let nextSteps = unit.nextSteps.map(normalizeAssistDraftNarration)
+
+        return AssistRecordUnit(
+            title: title,
+            summary: summary,
+            keyPoints: keyPoints,
+            nextSteps: nextSteps
+        ).normalizedOrNil
     }
 
     private func draftTitle(for questionText: String) -> String {

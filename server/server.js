@@ -719,8 +719,8 @@ async function handleAssist(body) {
     };
 
     const output = await callOpenAI({
-        instructions: "Return JSON only. Answer concisely and precisely.",
-        userInput: `User asked: ${question}\nConversation context: ${contextText}\nBuild one concise archive card and split the conversation into 1-4 meaningful record units by topic. Each record unit should stand on its own and should not be a sentence fragment.`,
+        instructions: "Return JSON only. You are turning an assistant conversation into a record draft the person can save directly. Write in natural Chinese record language, not in system-summary language. Do not use third-person product wording such as “用户”, “助手”, “AI”, or “系统” in title, context, summaries, key points, or next steps. Do not write case-note language like “用户咨询…”, “助手建议…”, “本次对话中…”, “摘要”, “总结”, or “纪要”. Prefer direct record phrasing: concise, natural narration; neutral tone; no coaching voice; no report voice. Titles should feel like real note titles that can be kept directly, not “总结/摘要/纪要”. Build one concise archive card and split the conversation into 1-4 meaningful record units by topic. Each record unit should stand on its own and should not be a sentence fragment.",
+        userInput: `User asked: ${question}\nConversation context: ${contextText}`,
         schemaName: "assist_archive",
         schema,
         model: config.modelAssist
