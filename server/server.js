@@ -196,7 +196,7 @@ function splitList(raw) {
 }
 
 function normalizeTranscribeProvider(rawProvider) {
-    const provider = (rawProvider || "openai").trim().toLowerCase();
+    const provider = (rawProvider || "doubao").trim().toLowerCase();
     if (provider === "openai" || provider === "doubao") {
         return provider;
     }
@@ -1135,7 +1135,7 @@ async function transcribeWithOpenAI(contentType, body) {
 
 async function transcribeWithDoubao(contentType, body) {
     if (!config.doubaoASRURL || !config.doubaoAppID || !config.doubaoAccessToken) {
-        throw new Error("missing_doubao_config");
+        throw new Error("missing_doubao_config: require DOUBAO_ASR_URL, DOUBAO_APP_ID, DOUBAO_ACCESS_TOKEN");
     }
 
     const parsed = parseMultipartFormData(body, contentType);
