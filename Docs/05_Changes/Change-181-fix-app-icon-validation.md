@@ -28,3 +28,7 @@
 ## Rollback Notes
 - Revert `Life Narattor.xcodeproj/project.pbxproj` and `Life Narattor/Assets.xcassets/AppIcon.appiconset/Contents.json`.
 - Delete the generated PNG icon files from `AppIcon.appiconset`.
+
+## Follow-up Fix
+- Regenerated the full icon set as non-transparent RGB PNG files after App Store validation reported an alpha channel in the large app icon.
+- Kept filenames and asset catalog entries unchanged so the fix stays minimal and archive-safe.
