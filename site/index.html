@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Life Narattor</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#ffffff; --text:#151823; --muted:#6f7787; --line:#e6e9f0; --accent:#0a84ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:860px; margin:0 auto; padding:40px 20px 80px; }
+    .hero { background:var(--card); border:1px solid var(--line); border-radius:28px; padding:36px; }
+    h1 { margin:0 0 10px; font-size:42px; }
+    p { line-height:1.7; color:var(--muted); margin:0; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-top:24px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:24px; padding:22px; text-decoration:none; color:inherit; }
+    .card h2 { margin:0 0 8px; font-size:24px; }
+    .badge { display:inline-block; margin-top:18px; color:var(--accent); font-weight:600; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Life Narattor</h1>
+      <p>一款以本地优先为基础的记录与 AI 回顾应用。默认情况下，记录内容保存在设备本地；只有在语音转写、AI 回顾等明确需要联网处理的功能中，才会通过产品后台进行处理。</p>
+    </section>
+    <section class="grid">
+      <a class="card" href="./privacy/">
+        <h2>隐私政策</h2>
+        <p>说明默认本地存储、联网处理边界、测试期数据使用方式，以及未来同步与自带 API 的边界。</p>
+        <span class="badge">查看隐私政策</span>
+      </a>
+      <a class="card" href="./support/">
+        <h2>技术支持</h2>
+        <p>说明如何反馈问题、当前测试范围、以及遇到 AI / 转写 / 回顾问题时该如何联系支持。</p>
+        <span class="badge">查看支持信息</span>
+      </a>
+    </section>
+  </main>
+</body>
+</html>
