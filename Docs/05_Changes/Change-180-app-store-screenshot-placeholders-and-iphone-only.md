@@ -32,3 +32,7 @@
 ## Rollback Notes
 - Revert `Life Narattor.xcodeproj/project.pbxproj` to restore iPad support.
 - Delete `AppStoreAssets/iPhone-6.9/` if the placeholder set is no longer needed.
+
+## Screenshot Format Follow-up
+- Added a second screenshot set under `AppStoreAssets/iPhone-6.7/` at `1284 x 2778`, matching the App Store Connect size requirements shown during upload.
+- Kept the earlier placeholder set for reference, but the 6.7-inch folder should be used for upload.
