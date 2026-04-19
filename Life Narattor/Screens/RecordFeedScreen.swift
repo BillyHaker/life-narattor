@@ -173,17 +173,21 @@ struct RecordFeedScreen: View {
                     onStop: viewModel.stopRecording,
                     onCancel: viewModel.cancelRecording
                 )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+            } else {
+                CaptureInputBarView(
+                    text: inputTextBinding,
+                    mode: inputModeBinding,
+                    onSend: viewModel.addCaptureFromInput,
+                    onRecord: viewModel.startRecording,
+                    showsModePicker: false,
+                    textPlaceholder: inputPlaceholder
+                )
             }
-
-            CaptureInputBarView(
-                text: inputTextBinding,
-                mode: inputModeBinding,
-                onSend: viewModel.addCaptureFromInput,
-                onRecord: viewModel.startRecording,
-                showsModePicker: false,
-                textPlaceholder: inputPlaceholder
-            )
         }
+        .padding(.top, 4)
+        .background(Color(.systemGroupedBackground))
     }
 
     private var inputTextBinding: Binding<String> {
