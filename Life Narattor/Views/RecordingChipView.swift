@@ -23,9 +23,6 @@ struct RecordingChipView: View {
                         Text("正在录音")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text("松开前不会发送，停止后会继续转写并回到当前对话")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
