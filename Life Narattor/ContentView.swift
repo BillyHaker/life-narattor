@@ -12,48 +12,45 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView {
-            RecordFeedScreen(context: context, aiService: aiService)
-                .tabItem {
-                    Label("记录", systemImage: "square.and.pencil")
-                }
+        Group {
+            if hasSeenPrivacyIntro {
+                TabView {
+                    RecordFeedScreen(context: context, aiService: aiService)
+                        .tabItem {
+                            Label("记录", systemImage: "square.and.pencil")
+                        }
 
-            TimelineScreen()
-                .tabItem {
-                    Label("时间线", systemImage: "clock")
-                }
+                    TimelineScreen()
+                        .tabItem {
+                            Label("时间线", systemImage: "clock")
+                        }
 
-            ProjectsListScreen()
-                .tabItem {
-                    Label("项目", systemImage: "folder")
-                }
+                    ProjectsListScreen()
+                        .tabItem {
+                            Label("项目", systemImage: "folder")
+                        }
 
-            NavigationStack {
-                SearchScreen()
-            }
-                .tabItem {
-                    Label("AI回顾", systemImage: "sparkles")
-                }
+                    NavigationStack {
+                        SearchScreen()
+                    }
+                        .tabItem {
+                            Label("AI回顾", systemImage: "sparkles")
+                        }
 
 #if DEBUG
-            DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
-                .tabItem {
-                    Label("Dev", systemImage: "hammer")
-                }
+                    DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
+                        .tabItem {
+                            Label("Dev", systemImage: "hammer")
+                        }
 #endif
-        }
-        .sheet(isPresented: Binding(
-            get: { !hasSeenPrivacyIntro },
-            set: { newValue in
-                if !newValue {
-                    hasSeenPrivacyIntro = true
+                }
+            } else {
+                PrivacyIntroScreen {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        hasSeenPrivacyIntro = true
+                    }
                 }
             }
-        )) {
-            PrivacyIntroSheet {
-                hasSeenPrivacyIntro = true
-            }
-            .interactiveDismissDisabled()
         }
     }
 }
@@ -65,22 +62,29 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-private struct PrivacyIntroSheet: View {
+private struct PrivacyIntroScreen: View {
     let onContinue: () -> Void
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("隐私说明")
-                        .font(.system(size: 28, weight: .bold))
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-                    Text("在开始使用前，我们先把数据边界说清楚。")
-                        .font(.system(size: 16, weight: .medium))
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("开始之前")
+                        .font(.system(size: 34, weight: .bold))
+
+                    Text("先把数据边界说清楚，再开始使用。")
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 14) {
                     PrivacyPoint(
                         title: "默认只保存在本地",
                         detail: "文字记录、语音、转写和整理结果，默认只保存在你的本地设备上。"
@@ -97,11 +101,11 @@ private struct PrivacyIntroSheet: View {
                     )
                 }
 
-                Text("继续代表你已经了解当前测试版以本地优先存储为默认方式。")
+                Text("继续代表你已经了解当前版本默认以本地优先存储为基础。")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Button(action: onContinue) {
                     Text("继续")
@@ -112,11 +116,11 @@ private struct PrivacyIntroSheet: View {
                 .buttonStyle(.borderedProminent)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .padding(24)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 24)
+            .padding(.top, 48)
+            .padding(.bottom, 34)
+            .frame(maxWidth: 620)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 }
 
