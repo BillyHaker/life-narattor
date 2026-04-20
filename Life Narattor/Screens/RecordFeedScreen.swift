@@ -9,6 +9,8 @@ struct RecordFeedScreen: View {
     @State private var selectedScope: RecordListScope = .today
     @State private var searchQuery: String = ""
     @State private var shouldAutoScrollToLatest: Bool = true
+    @FocusState private var isSearchFieldFocused: Bool
+    @FocusState private var isInputFieldFocused: Bool
     private let context: NSManagedObjectContext
     private let aiService: AIService
     private let calendar = Calendar.current
@@ -154,6 +156,12 @@ struct RecordFeedScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    dismissKeyboard()
+                }
+            )
             .onAppear {
                 scrollToLatestIfNeeded(with: proxy)
             }
@@ -182,7 +190,8 @@ struct RecordFeedScreen: View {
                     onSend: viewModel.addCaptureFromInput,
                     onRecord: viewModel.startRecording,
                     showsModePicker: false,
-                    textPlaceholder: inputPlaceholder
+                    textPlaceholder: inputPlaceholder,
+                    isTextFieldFocused: $isInputFieldFocused
                 )
             }
         }
@@ -266,6 +275,7 @@ struct RecordFeedScreen: View {
                     .foregroundStyle(.secondary)
                 TextField(searchPlaceholder, text: $searchQuery)
                     .font(.subheadline)
+                    .focused($isSearchFieldFocused)
 
                 if !searchQuery.isEmpty {
                     Button {
@@ -292,6 +302,10 @@ struct RecordFeedScreen: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
     }
 
     private var recordFilteredCaptures: [CaptureItem] {
@@ -590,6 +604,12 @@ struct RecordFeedScreen: View {
                     .onAppear {
                         scrollAssistSessionToBottom(with: proxy)
                     }
+                    .scrollDismissesKeyboard(.interactively)
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            dismissKeyboard()
+                        }
+                    )
                     .onChange(of: viewModel.assistSessionMessages.count) { _, _ in
                         scrollAssistSessionToBottom(with: proxy)
                     }
@@ -648,6 +668,12 @@ struct RecordFeedScreen: View {
                 proxy.scrollTo(last, anchor: .bottom)
             }
         }
+    }
+
+    private func dismissKeyboard() {
+        isSearchFieldFocused = false
+        isInputFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
