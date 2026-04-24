@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+**/DerivedData/
+*.xcuserdatad/
+**/xcuserdata/
+*.xcuserstate
+*.xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+*.swp
+*.tmp
+
+# SwiftPM / build
+.build/
+
+# Local secrets / runtime
+.env
+.env.*
+!.env.example
+server/.env
