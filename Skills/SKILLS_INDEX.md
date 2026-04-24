@@ -54,7 +54,7 @@ Docs/00_Index/EXECUTION_BRIEF.md
 ## Seed governance & quality (universal reference)
 - `seed-northstar`
 - `dev-logging-system`
-- `acceptance-testing-min-bar`
+- `acceptance-testing-min-bar` — v1.1 requires every non-trivial proposal to include a concrete detection plan before implementation
 - `contract-versioning`
 - `privacy-redaction-standard`
 - `feature-flags-governance`

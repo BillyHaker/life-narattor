@@ -20,6 +20,7 @@ Docs/CODEX_EXECUTION_BRIEF_<YYYY-MM-DD>_iter-<NNN>.md
 The brief must contain:
 - **Iteration goals** (1–2 max)
 - **Definition of Done** — acceptance criteria from relevant Skills
+- **Detection plan** — expected behavior, exact detection path, pass criteria, failure signals, and regression surface
 - **Frozen zones** — files/modules Codex must NOT touch
 - **Known risks** — with mitigations
 - **Affected files** — paths only, no source changes
@@ -29,3 +30,7 @@ The brief must contain:
 
 Codex reads the brief as its **first action** before writing any code.
 See `Docs/CODEX_EXECUTION_BRIEF_2026-03-06_iter-001.md` for a reference example.
+
+## Proposal Quality Gate
+
+For any non-trivial modification proposal, the proposal is incomplete unless it includes a concrete detection plan. The detection plan must make the change observable before implementation begins: what should change, how to check it, what proves success, what indicates failure, and which adjacent flows may regress.
