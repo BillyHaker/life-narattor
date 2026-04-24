@@ -1,9 +1,10 @@
 import Foundation
 
-struct TimelineDay: Identifiable {
+struct TimelineDay: Identifiable, Hashable {
     let id: UUID
     let date: Date
     let highlights: [String]
+    let highlightCaptureIDs: [UUID]
     let hasNarrative: Bool
 }
 

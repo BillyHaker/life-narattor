@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProjectItem: Identifiable {
+struct ProjectItem: Identifiable, Hashable {
     let id: UUID
     let name: String
     let summary: String

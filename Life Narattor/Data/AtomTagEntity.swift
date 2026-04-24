@@ -6,4 +6,5 @@ final class AtomTagEntity: NSManagedObject {
     @NSManaged var atomID: UUID
     @NSManaged var tagID: UUID
     @NSManaged var createdAt: Date
+    @NSManaged var isSuggested: Bool
 }

@@ -4,6 +4,7 @@ import CoreData
 final class CaptureEntity: NSManagedObject {
     @NSManaged var id: UUID
     @NSManaged var createdAt: Date
+    @NSManaged var isHiddenFromFeed: Bool
     @NSManaged var rawText: String
     @NSManaged var cleanText: String?
     @NSManaged var ackTitle: String?
@@ -16,4 +17,8 @@ final class CaptureEntity: NSManagedObject {
     @NSManaged var audioPath: String?
     @NSManaged var transcriptText: String?
     @NSManaged var transcriptionStatus: String?
+    @NSManaged var transcriptionError: String?
+    @NSManaged var atomizationError: String?
+    @NSManaged var sourceThreadID: UUID?
+    @NSManaged var atomizeVersion: String? // Track atomization rule version
 }

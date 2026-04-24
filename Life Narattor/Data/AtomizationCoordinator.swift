@@ -1,63 +1,81 @@
 import CoreData
 import Foundation
 
-@MainActor
 struct AtomizationCoordinator {
     let context: NSManagedObjectContext
     let aiService: AIService
+    private let atomizationPayloadArtifactType = "atomization_payload"
 
     private var atomStore: AtomTagStore { AtomTagStore(context: context) }
 
-    func atomizeCaptureIfNeeded(captureID: UUID, cleanText: String) async {
+    // CRITICAL: Runs on background thread to avoid blocking UI
+    // Core Data operations use context.perform to ensure thread safety
+    func atomizeCaptureIfNeeded(
+        captureID: UUID,
+        cleanText: String,
+        progress: (@MainActor (String) -> Void)? = nil
+    ) async throws {
         guard !cleanText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        let tagLibrary = loadTagLibrary()
+        // Load tag library on main context
+        await progress?("正在加载标签库…")
+        let tagLibrary = await MainActor.run { loadTagLibrary() }
+
         do {
-            let capture = fetchCaptureItem(id: captureID, cleanText: cleanText)
+            // Fetch capture on main context
+            await progress?("已发送拆分请求，等待 AI 响应…")
+            let capture = await MainActor.run { fetchCaptureItem(id: captureID, cleanText: cleanText) }
+
+            // AI calls run on background thread (not blocking UI)
             let result = try await aiService.atomize(capture: capture, tagLibrary: tagLibrary)
             let drafts = result.atoms.filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
             guard !drafts.isEmpty else {
-                atomizeFallback(captureID: captureID, cleanText: cleanText)
-                return
+                throw AIServiceError.emptyResponse
             }
 
-            let atomIDs = atomStore.replaceAtoms(with: drafts, captureID: captureID)
-            let suggestions = try? await aiService.suggestTags(atoms: drafts, tagLibrary: tagLibrary)
-            if let suggestions {
-                atomStore.assignTagSuggestions(suggestions.suggestions, to: atomIDs, isHidden: false)
-                atomStore.assignTagSuggestions(suggestions.hiddenSuggestions, to: atomIDs, isHidden: true)
+            // Core Data writes on main context
+            await progress?("AI 已返回，正在整理拆分结果…")
+            let atomIDs = await MainActor.run {
+                saveAtomizationPayload(AtomizationArtifactPayload(result: result), captureID: captureID)
+                return atomStore.replaceAtoms(with: drafts, captureID: captureID, atomizeVersion: result.atomizeVersion)
             }
 
-            let hasVisibleSuggestions = !(suggestions?.suggestions ?? []).isEmpty
-            atomStore.updateCaptureStats(
-                captureID: captureID,
-                atomsCount: atomIDs.count,
-                processingState: hasVisibleSuggestions ? .tagsSuggested : .atomsReady
-            )
-            LogStore.shared.log("Atomize=OpenAI", category: .ai)
+            // Tag suggestion (background AI call)
+            await progress?("正在生成标签建议…")
+            let suggestions = try? await aiService.suggestTags(atomization: result, tagLibrary: tagLibrary)
+
+            await MainActor.run {
+                if let suggestions {
+                    // Beta: visible tag recommendations are disabled.
+                    // Keep only hidden suggestions for retrieval/indexing.
+                    atomStore.assignHiddenTagSuggestions(suggestions.hiddenSuggestions, toAllAtoms: atomIDs)
+                }
+
+                atomStore.updateCaptureStats(
+                    captureID: captureID,
+                    atomsCount: atomIDs.count,
+                    processingState: .atomsReady,
+                    atomizeVersion: result.atomizeVersion
+                )
+                LogStore.shared.log("Atomize=OpenAI", category: .ai)
+            }
         } catch {
-            atomizeFallback(captureID: captureID, cleanText: cleanText)
-            LogStore.shared.log("Atomize=Fallback (\(error.localizedDescription))", category: .ai)
-        }
-    }
-
-    private func atomizeFallback(captureID: UUID, cleanText: String) {
-        let count = atomStore.createAtoms(from: cleanText, captureID: captureID)
-        if count > 0 {
-            atomStore.updateCaptureStats(
-                captureID: captureID,
-                atomsCount: count,
-                processingState: .atomsReady
-            )
+            await MainActor.run {
+                LogStore.shared.log("Atomize=Failed (\(error.localizedDescription))", category: .ai)
+            }
+            throw error
         }
     }
 
     private func loadTagLibrary() -> TagLibrary {
         TagLibrary(
             project: fetchTagNames(type: .project),
+            habit: fetchTagNames(type: .habit),
             theme: fetchTagNames(type: .theme),
             person: fetchTagNames(type: .person),
-            goal: fetchTagNames(type: .goal)
+            goal: fetchTagNames(type: .goal),
+            context: fetchTagNames(type: .context)
         )
     }
 
@@ -94,7 +112,32 @@ struct AtomizationCoordinator {
             inputType: inputType,
             audioPath: entity?.audioPath,
             transcriptText: entity?.transcriptText,
-            transcriptionStatus: TranscriptionStatus(rawValue: entity?.transcriptionStatus ?? "")
+            transcriptionStatus: TranscriptionStatus(rawValue: entity?.transcriptionStatus ?? ""),
+            transcriptionErrorReason: entity?.transcriptionError,
+            atomizationErrorReason: entity?.atomizationError,
+            isTranscriptionActive: false
         )
+    }
+
+    @MainActor
+    private func saveAtomizationPayload(_ payload: AtomizationArtifactPayload, captureID: UUID) {
+        let request = NSFetchRequest<ArtifactEntity>(entityName: "ArtifactEntity")
+        request.predicate = NSPredicate(
+            format: "artifactType == %@ AND sourceCaptureID == %@",
+            atomizationPayloadArtifactType,
+            captureID as CVarArg
+        )
+        let existing = (try? context.fetch(request))?.first
+        let artifact = existing ?? ArtifactEntity(context: context)
+        if existing == nil {
+            artifact.id = UUID()
+            artifact.createdAt = Date()
+            artifact.sourceCaptureID = captureID
+            artifact.artifactType = atomizationPayloadArtifactType
+        }
+        artifact.title = "atomization_payload"
+        artifact.contentJSON = payload.encodedJSON() ?? "{}"
+        artifact.status = "done"
+        artifact.updatedAt = Date()
     }
 }

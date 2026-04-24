@@ -258,6 +258,7 @@ final class CaptureFeedViewModel: ObservableObject {
 
     func loadCaptures() {
         let request = NSFetchRequest<CaptureEntity>(entityName: "CaptureEntity")
+        request.predicate = NSPredicate(format: "isHiddenFromFeed == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
 
         do {
@@ -647,6 +648,7 @@ final class CaptureFeedViewModel: ObservableObject {
 
         entity.id = captureID
         entity.createdAt = createdAt
+        entity.isHiddenFromFeed = false
         entity.rawText = text
         entity.cleanText = cleanResult.cleanText
         entity.dayPart = part.rawValue
@@ -2223,6 +2225,7 @@ final class CaptureFeedViewModel: ObservableObject {
         entity.cleanText = nil
         entity.dayPart = draft.dayPart.rawValue
         entity.mode = draft.mode.rawValue
+        entity.isHiddenFromFeed = false
         entity.processingState = CaptureProcessingState.pendingClean.rawValue
         entity.atomsCount = 0
         entity.inputType = CaptureInputType.voice.rawValue
