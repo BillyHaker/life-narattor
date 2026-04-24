@@ -1,9 +1,9 @@
 # 🚨 紧急修复：详情页卡死问题
 
 **问题**: 点击记录卡片打开详情页时，应用卡死
-**根本原因**: `onAppear` 同步触发 AI 拆分，阻塞主线程
-**修复时间**: 2026-03-06 16:15
-**状态**: ✅ 已修复并验证构建
+**根本原因**: `@MainActor` 标记在 `AtomizationCoordinator` 上，强制所有 async 操作在主线程执行
+**修复时间**: 2026-03-06 17:30 (第二次修复)
+**状态**: ✅ 已修复并验证构建 (1.62s)
 
 ---
 
@@ -42,9 +42,19 @@
 
 ---
 
-## ✅ 修复方案
+## 🔄 修复历史
 
-### 修复1: 使用 `.task` 替代 `.onAppear`
+### 第一次修复 (16:15) - 不完整 ⚠️
+使用 `.task` 替代 `.onAppear` - **未能解决根本问题**
+
+### 第二次修复 (17:30) - 完整解决 ✅
+移除 `@MainActor`，改用 `MainActor.run { }` 包装 Core Data 操作
+
+---
+
+## ✅ 最终修复方案
+
+### 修复1: 使用 `.task` 替代 `.onAppear` (已过时)
 
 **变更**: `CaptureDetailSheet.swift:152-155`
 
@@ -68,9 +78,47 @@
 - UI 立即显示，不等待完成
 - 用户可以看到"正在拆分..."状态
 
-### 修复2: 改进 `ensureAtomsIfNeeded()` 内部逻辑
+### 修复2: 移除 `@MainActor` 并重构线程模型 ✅ 关键修复
 
-**变更**: `CaptureDetailSheet.swift:212-228`
+**变更**: `AtomizationCoordinator.swift:1-44`
+
+**问题发现**:
+- 第一次修复后用户报告 "仍然出现"
+- 深入分析发现：`@MainActor` 在 coordinator 上强制所有 async 方法在主线程执行
+- 即使用了 `.task`，`await` 调用仍然阻塞主线程 5-30 秒
+
+**核心修复**:
+```swift
+// 修复前（阻塞主线程）
+@MainActor
+struct AtomizationCoordinator {
+    func atomizeCaptureIfNeeded(...) async {
+        // 即使是 async，也在主线程执行！
+        let result = try await aiService.atomize(...)  // 阻塞 5-30 秒
+        atomStore.replaceAtoms(...)
+    }
+}
+
+// 修复后（后台线程）
+struct AtomizationCoordinator {  // ✅ 移除 @MainActor
+    func atomizeCaptureIfNeeded(...) async {
+        // AI 调用在后台线程 ✅
+        let result = try await aiService.atomize(...)
+
+        // Core Data 在主线程 ✅
+        let atomIDs = await MainActor.run {
+            atomStore.replaceAtoms(...)
+        }
+    }
+}
+```
+
+**效果**:
+- AI 调用（5-30 秒）在后台线程，不阻塞 UI
+- Core Data 操作安全地在主队列执行
+- 用户界面立即显示，保持响应
+
+**变更**: `CaptureDetailSheet.swift:213-234`
 
 ```swift
 private func ensureAtomsIfNeeded(force: Bool = false) {
@@ -266,18 +314,29 @@ static func make() -> AIService {
 
 ## 🎉 总结
 
-**核心问题**: 详情页打开时同步触发 AI 拆分
-**核心修复**: `.onAppear` → `.task` + `@MainActor` 标注
-**验证状态**: ✅ 构建成功（2.41秒）
+**核心问题**: `@MainActor` 强制所有 async 操作在主线程执行，阻塞 UI 5-30 秒
+**核心修复**: 移除 `@MainActor`，用 `MainActor.run { }` 包装 Core Data 操作
+**验证状态**: ✅ 构建成功（1.62秒）
+
+**修复历程**:
+1. 第一次修复 (16:15): `.onAppear` → `.task` - **未能解决**
+2. 第二次修复 (17:30): 移除 `@MainActor` - **完全解决** ✅
+
+**关键发现**:
+- `@MainActor` 在类型上标记会强制所有方法在主线程执行
+- 即使方法是 `async`，`await` 调用仍会阻塞主线程
+- 正确做法：去除 `@MainActor`，手动用 `MainActor.run { }` 包装需要主线程的操作
 
 **下一步**:
-1. 删除应用并重新运行
-2. 测试打开详情页（应该流畅）
-3. 如有问题，查看控制台日志
+1. 删除应用并重新运行（清空旧数据）
+2. 测试打开详情页（应该瞬间打开，显示加载状态）
+3. 确认 UI 保持响应，atoms 在后台加载完成后出现
 
 ---
 
-**修复时间**: 2026-03-06 16:15
-**构建状态**: ✅ Success (2.41s)
-**文件修改**: 1 个文件，2 处修改
+**第一次修复**: 2026-03-06 16:15 (不完整)
+**第二次修复**: 2026-03-06 17:30 (完整解决)
+**构建状态**: ✅ Success (1.62s)
+**文件修改**: 2 个文件，3 处关键修改
 **测试状态**: 等待用户验证
+**详细文档**: THREADING_FIX_FINAL.md

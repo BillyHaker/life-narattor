@@ -19,6 +19,9 @@ You are the **Execution Engineer (Codex)**.
 - Keep changes **small & reversible** (prefer 1 task per commit).
 - Never introduce or log secrets. Follow privacy redaction rules.
 - Preserve app stability: no main-thread blocking, no long-running work on `@MainActor`.
+- Do not interrupt the user for per-feature manual validation; after each feature run automated checks and append remaining items to `Docs/VERIFICATION_BACKLOG.md`.
+- Report automated verification failures immediately; do not hide them in backlog.
+- Trigger verification consolidation at milestone boundaries (`module complete`, `before demo`, `sprint/stage end`) or when user says `请整理一下待验证项`.
 
 ## 3) Always-read sources (authority order)
 1) MEMORY_MANIFEST.md (change detector)
@@ -55,4 +58,3 @@ Include: Files Changed, Verification Steps, Rollback Notes.
 ## 5) Tooling
 - Git is the source of truth for review & rollback.
 - Xcode is the execution/verification window. If Xcode MCP tools are available, prefer them for structured diagnostics.
-
