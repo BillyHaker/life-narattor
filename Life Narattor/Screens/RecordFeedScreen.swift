@@ -52,7 +52,15 @@ struct RecordFeedScreen: View {
                     aiService: aiService,
                     onRetryClean: { viewModel.retryClean(captureID: $0, forceAI: true) },
                     onRetryTranscription: { viewModel.retryTranscription(captureID: $0) },
-                    onRetryAtomization: { viewModel.retryAtomization(captureID: $0) }
+                    onRetryAtomization: { viewModel.retryAtomization(captureID: $0) },
+                    onCaptureChanged: {
+                        viewModel.loadCaptures()
+                        if let updated = viewModel.captures.first(where: { $0.id == item.id }) {
+                            selectedCapture = updated
+                        } else {
+                            selectedCapture = nil
+                        }
+                    }
                 )
             }
             .fullScreenCover(isPresented: assistDraftEditorBinding) {

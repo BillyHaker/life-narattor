@@ -1,9 +1,21 @@
 import CoreData
 import SwiftUI
 
+enum RootTab: Hashable {
+    case record
+    case timeline
+    case projects
+    case review
+#if DEBUG
+    case dev
+#endif
+}
+
 struct ContentView: View {
+
     @Environment(\.managedObjectContext) private var context
     @AppStorage("app.hasSeenPrivacyIntro") private var hasSeenPrivacyIntro = false
+    @State private var selectedTab: RootTab = .record
 
     private let aiService: AIService
 
@@ -14,21 +26,24 @@ struct ContentView: View {
     var body: some View {
         Group {
             if hasSeenPrivacyIntro {
-                TabView {
+                TabView(selection: $selectedTab) {
                     RecordFeedScreen(context: context, aiService: aiService)
                         .tabItem {
                             Label("记录", systemImage: "square.and.pencil")
                         }
+                        .tag(RootTab.record)
 
-                    TimelineScreen()
+                    TimelineScreen(aiService: aiService, selectedTab: $selectedTab)
                         .tabItem {
                             Label("时间线", systemImage: "clock")
                         }
+                        .tag(RootTab.timeline)
 
                     ProjectsListScreen()
                         .tabItem {
                             Label("项目", systemImage: "folder")
                         }
+                        .tag(RootTab.projects)
 
                     NavigationStack {
                         SearchScreen()
@@ -36,12 +51,14 @@ struct ContentView: View {
                         .tabItem {
                             Label("AI回顾", systemImage: "sparkles")
                         }
+                        .tag(RootTab.review)
 
 #if DEBUG
                     DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
                         .tabItem {
                             Label("Dev", systemImage: "hammer")
                         }
+                        .tag(RootTab.dev)
 #endif
                 }
             } else {

@@ -20,7 +20,7 @@ struct AddTagSheet: View {
                         Text(type.title).tag(type)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
 
                 if atomID == nil {
                     Text("请选择一个原子")

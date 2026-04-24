@@ -5,44 +5,35 @@ struct MonthlyReviewScreen: View {
     @Environment(\.managedObjectContext) private var context
     @State private var narrativeText: String = ""
     @State private var highlightDays: [TimelineDay] = []
-    @State private var selectedCommentStyle: CommentStyle = .gentle
-    @State private var isCommentEnabled: Bool = true
+    @State private var aiAnalysisText: String = ""
+    @State private var isLoadingAnalysis = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("自我叙事")
+                    Text("AI 回顾分析")
+                        .font(.headline)
+                    if isLoadingAnalysis {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("AI 正在整理本月回顾…")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(aiAnalysisText.isEmpty ? (narrativeText.isEmpty ? "这段时间还没有记录。" : narrativeText) : aiAnalysisText)
+                            .font(.body)
+                            .foregroundStyle((aiAnalysisText.isEmpty && narrativeText.isEmpty) ? .secondary : .primary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("结构概览")
                         .font(.headline)
                     Text(narrativeText.isEmpty ? "这段时间还没有记录。" : narrativeText)
                         .font(.body)
                         .foregroundStyle(narrativeText.isEmpty ? .secondary : .primary)
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("AI 的回应")
-                            .font(.headline)
-                        Spacer()
-                        Toggle("关闭回应", isOn: $isCommentEnabled)
-                            .labelsHidden()
-                    }
-
-                    if isCommentEnabled {
-                        Picker("风格", selection: $selectedCommentStyle) {
-                            ForEach(CommentStyle.allCases) { style in
-                                Text(style.title).tag(style)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        Text(selectedCommentStyle.sampleText)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .padding(12)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -77,9 +68,11 @@ struct MonthlyReviewScreen: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle("本月回顾")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemGroupedBackground))
@@ -87,66 +80,41 @@ struct MonthlyReviewScreen: View {
     }
 
     private func loadMonthlyData() {
-        guard let interval = Calendar.current.dateInterval(of: .month, for: Date()) else {
+        let end = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -30, to: end) ?? end
+        let range = RetrievalTimeRange(start: start, end: end, label: "最近30天")
+        let service = ReviewRetrievalService(context: context)
+        let brief = service.makeOpenReviewBrief(periodLabel: "过去一个月", range: range)
+        let material = service.makeNarrativeMaterial(from: brief)
+        if material.representativeUnits.isEmpty {
             narrativeText = ""
             highlightDays = []
+            aiAnalysisText = ""
             return
         }
 
-        let captures = fetchCaptures(from: interval.start, to: interval.end)
-        if captures.isEmpty {
-            narrativeText = ""
-            highlightDays = []
-            return
-        }
-
-        narrativeText = makeSelfNarrative(from: captures, periodName: "本月")
-        highlightDays = buildDays(from: captures)
+        narrativeText = service.makeNarrativeText(from: material, periodName: "本月")
+        highlightDays = service.buildDays(from: material)
+        requestAIAnalysis(material: material, periodName: "本月")
     }
 
-    private func fetchCaptures(from start: Date, to end: Date) -> [CaptureEntity] {
-        let request = NSFetchRequest<CaptureEntity>(entityName: "CaptureEntity")
-        request.predicate = NSPredicate(
-            format: "createdAt >= %@ AND createdAt < %@",
-            start as CVarArg,
-            end as CVarArg
-        )
-        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return (try? context.fetch(request)) ?? []
-    }
-
-    private func buildDays(from captures: [CaptureEntity]) -> [TimelineDay] {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: captures) { capture in
-            calendar.startOfDay(for: capture.createdAt)
+    private func requestAIAnalysis(material: NarrativeMaterial, periodName: String) {
+        isLoadingAnalysis = true
+        aiAnalysisText = ""
+        Task {
+            do {
+                let text = try await AIServiceFactory.make().analyzeNarrativeMaterial(material, periodName: periodName, followupQuestion: nil)
+                await MainActor.run {
+                    aiAnalysisText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    isLoadingAnalysis = false
+                }
+            } catch {
+                await MainActor.run {
+                    aiAnalysisText = ""
+                    isLoadingAnalysis = false
+                }
+            }
         }
-
-        return grouped.map { date, items in
-            let sorted = items.sorted { $0.createdAt > $1.createdAt }
-            let highlights = sorted
-                .compactMap { $0.cleanText ?? $0.rawText }
-                .prefix(6)
-            let highlightIDs = sorted
-                .map { $0.id }
-                .prefix(6)
-            return TimelineDay(
-                id: UUID(),
-                date: date,
-                highlights: Array(highlights),
-                highlightCaptureIDs: Array(highlightIDs),
-                hasNarrative: items.count >= 3
-            )
-        }
-        .sorted { $0.date > $1.date }
-    }
-
-    private func makeSelfNarrative(from captures: [CaptureEntity], periodName: String) -> String {
-        let top = captures
-            .sorted { $0.createdAt > $1.createdAt }
-            .compactMap { $0.cleanText ?? $0.rawText }
-            .prefix(3)
-        let summary = top.joined(separator: "、")
-        return "\(periodName)我记录了\(captures.count)条，主要是：\(summary)。"
     }
 
     private func formattedDate(_ date: Date) -> String {

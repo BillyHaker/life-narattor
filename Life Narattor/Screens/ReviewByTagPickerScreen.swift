@@ -44,7 +44,7 @@ struct ReviewByTagPickerScreen: View {
         .padding(.top, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(tagType == .project ? "按项目回顾" : "按主题回顾")
+        .navigationTitle("按\(tagType.title)回顾")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: loadTags)
     }
@@ -62,12 +62,16 @@ struct ReviewByTagPickerScreen: View {
         switch tagType {
         case .project:
             return "还没有项目。创建一个项目标签，之后好整理回顾。"
+        case .habit:
+            return "还没有习惯标签。先积累一些行为模式标签。"
         case .theme:
             return "还没有主题标签。先给记录加一些主题标签。"
         case .person:
             return "还没有人物标签。"
         case .goal:
             return "还没有目标标签。"
+        case .context:
+            return "还没有场景标签。"
         }
     }
 

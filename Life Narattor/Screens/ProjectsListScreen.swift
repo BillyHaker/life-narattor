@@ -1,20 +1,9 @@
+import CoreData
 import SwiftUI
 
 struct ProjectsListScreen: View {
-    private let projects: [ProjectItem] = [
-        ProjectItem(
-            id: UUID(),
-            name: "Life Narrator",
-            summary: "产品内测与方向推进",
-            updatedAt: Date()
-        ),
-        ProjectItem(
-            id: UUID(),
-            name: "学习系统",
-            summary: "整理学习节奏",
-            updatedAt: Calendar.current.date(byAdding: .day, value: -3, to: Date()) ?? Date()
-        )
-    ]
+    @Environment(\.managedObjectContext) private var context
+    @State private var projects: [ProjectItem] = []
 
     var body: some View {
         NavigationStack {
@@ -41,7 +30,8 @@ struct ProjectsListScreen: View {
             .navigationTitle("项目")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
+                    NavigationLink {
+                        TagManagerScreen()
                     } label: {
                         Image(systemName: "gearshape")
                     }
@@ -50,6 +40,7 @@ struct ProjectsListScreen: View {
             .navigationDestination(for: ProjectItem.self) { project in
                 ProjectDetailScreen(project: project)
             }
+            .onAppear(perform: loadProjects)
         }
     }
 
@@ -60,6 +51,33 @@ struct ProjectsListScreen: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
+    }
+
+    private func loadProjects() {
+        let request = NSFetchRequest<TagEntity>(entityName: "TagEntity")
+        request.predicate = NSPredicate(format: "isUserVisible == YES AND type == %@", TagType.project.rawValue)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+
+        let results = (try? context.fetch(request)) ?? []
+        projects = results.map { tag in
+            let count = fetchAtomCount(tagID: tag.id)
+            let summary = count == 0 ? "暂无关联记录" : "关联 \(count) 条片段"
+            return ProjectItem(
+                id: tag.id,
+                name: tag.name,
+                summary: summary,
+                updatedAt: tag.createdAt
+            )
+        }
+    }
+
+    private func fetchAtomCount(tagID: UUID) -> Int {
+        let request = NSFetchRequest<AtomTagEntity>(entityName: "AtomTagEntity")
+        request.predicate = NSPredicate(format: "tagID == %@", tagID as CVarArg)
+        return (try? context.count(for: request)) ?? 0
     }
 }
 

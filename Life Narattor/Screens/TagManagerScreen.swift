@@ -14,6 +14,7 @@ struct TagManagerScreen: View {
     @State private var showingMergePicker = false
     @State private var mergeSource: TagEntity? = nil
     @State private var mergeTarget: TagEntity? = nil
+    @State private var showingMergeConfirm = false
     @State private var pendingDelete: TagEntity? = nil
 
     var body: some View {
@@ -23,7 +24,7 @@ struct TagManagerScreen: View {
                     Text(tagType.title).tag(tagType)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .padding(.horizontal, 16)
 
             if tags.isEmpty {
@@ -101,12 +102,25 @@ struct TagManagerScreen: View {
                     selectedTarget: $mergeTarget,
                     onCancel: { showingMergePicker = false },
                     onConfirm: {
-                        if let source = mergeSource, let target = mergeTarget {
-                            mergeTag(source: source, target: target)
-                        }
-                        showingMergePicker = false
+                        showingMergeConfirm = true
                     }
                 )
+            }
+        }
+        .confirmationDialog("合并标签", isPresented: $showingMergeConfirm, titleVisibility: .visible) {
+            Button("确认合并", role: .destructive) {
+                if let source = mergeSource, let target = mergeTarget {
+                    mergeTag(source: source, target: target)
+                }
+                showingMergePicker = false
+                showingMergeConfirm = false
+            }
+            Button("取消", role: .cancel) {
+                showingMergeConfirm = false
+            }
+        } message: {
+            if let source = mergeSource, let target = mergeTarget {
+                Text("将“\(source.name)”合并到“\(target.name)”？该操作会影响历史记录。")
             }
         }
         .onAppear {
@@ -304,25 +318,15 @@ private struct MergeTagPickerView: View {
     let onCancel: () -> Void
     let onConfirm: () -> Void
 
+    private var availableTargets: [TagEntity] {
+        guard let source else { return [] }
+        return tags.filter { $0.id != source.id }
+    }
+
     var body: some View {
         List {
             if let source {
-                Section("合并到") {
-                    ForEach(tags.filter { $0.id != source.id }, id: \.id) { tag in
-                        HStack {
-                            Text(tag.name)
-                            Spacer()
-                            if selectedTarget?.id == tag.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.accent)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedTarget = tag
-                        }
-                    }
-                }
+                mergeSection(for: source)
             }
         }
         .navigationTitle("合并标签")
@@ -336,5 +340,38 @@ private struct MergeTagPickerView: View {
                     .disabled(selectedTarget == nil)
             }
         }
+    }
+
+    @ViewBuilder
+    private func mergeSection(for source: TagEntity) -> some View {
+        Section("合并到") {
+            ForEach(availableTargets, id: \.id) { tag in
+                MergeTargetRow(
+                    name: tag.name,
+                    isSelected: selectedTarget?.id == tag.id
+                ) {
+                    selectedTarget = tag
+                }
+            }
+        }
+    }
+}
+
+private struct MergeTargetRow: View {
+    let name: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(name)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
     }
 }

@@ -3,6 +3,10 @@ import SwiftUI
 struct CaptureCardView: View {
     let item: CaptureItem
     let onShowDetail: () -> Void
+    let onAssistSave: () -> Void
+    let onAssistEdit: (AssistArchivePayload) -> Void
+    let onAssistEnd: () -> Void
+    let onRetryTranscription: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -11,7 +15,28 @@ struct CaptureCardView: View {
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if item.mode == .log {
+            if item.inputType == .voice, let transcriptionStatus = item.transcriptionStatus {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(item.isTranscriptionActive ? "正在转写…" : transcriptionStatus.displayText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if !item.isTranscriptionActive && transcriptionStatus == .failed {
+                            Button("重试", action: onRetryTranscription)
+                                .font(.footnote.weight(.semibold))
+                        }
+                    }
+
+                    if !item.isTranscriptionActive,
+                       (transcriptionStatus == .failed || transcriptionStatus == .offline),
+                       let reason = item.transcriptionErrorReason,
+                       !reason.isEmpty {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if item.mode == .log {
                 if item.processingState != .cleanReady {
                     Text(statusText)
                         .font(.footnote)
@@ -34,8 +59,20 @@ struct CaptureCardView: View {
                     }
                 }
             case .assist:
-                if let payload = item.assistPayload {
-                    AssistArchiveCardView(payload: payload)
+                if let record = item.assistRecord {
+                    if record.status == .ended {
+                        Text("已结束")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        AssistArchiveCardView(
+                            payload: record.payload,
+                            status: record.status,
+                            onSave: onAssistSave,
+                            onEdit: onAssistEdit,
+                            onEnd: onAssistEnd
+                        )
+                    }
                 } else {
                     QuickAckBarView(
                         title: "正在整理…",
@@ -56,6 +93,6 @@ struct CaptureCardView: View {
         if item.processingState == .atomsReady || item.processingState == .tagsSuggested {
             return "已拆分为 \(item.atomsCount) 条"
         }
-        return item.processingState.displayText
+        return "已记录"
     }
 }

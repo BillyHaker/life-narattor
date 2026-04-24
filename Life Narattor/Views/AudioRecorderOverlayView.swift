@@ -13,7 +13,7 @@ struct AudioRecorderOverlayView: View {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 36, weight: .semibold))
                     .foregroundStyle(.white)
-                Text("按住录音（占位）")
+                Text("按住录音")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                 Text("松手发送")
