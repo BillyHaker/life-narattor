@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DevToolsAIDebugView: View {
-    @State private var store = AIDebugStore.shared
+    @StateObject private var store = AIDebugStore.shared
     @State private var selectedEntry: AIDebugEntry? = nil
 
     var body: some View {
