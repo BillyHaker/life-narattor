@@ -41,7 +41,7 @@ struct ContentView: View {
 
                     ProjectsListScreen()
                         .tabItem {
-                            Label("项目", systemImage: "folder")
+                            Label("线索", systemImage: "folder")
                         }
                         .tag(RootTab.projects)
 

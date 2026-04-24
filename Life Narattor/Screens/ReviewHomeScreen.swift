@@ -12,12 +12,12 @@ struct ReviewHomeScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 12) {
-                        NavigationLink("本周回顾") {
+                        NavigationLink("回看本周") {
                             WeeklyReviewScreen()
                         }
                         .buttonStyle(.bordered)
 
-                        NavigationLink("本月回顾") {
+                        NavigationLink("回看本月") {
                             MonthlyReviewScreen()
                         }
                         .buttonStyle(.bordered)
@@ -25,7 +25,7 @@ struct ReviewHomeScreen: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("按标签回顾")
+                            Text("按线索回看")
                                 .font(.headline)
                             Spacer()
                             NavigationLink("标签库") {
@@ -46,7 +46,7 @@ struct ReviewHomeScreen: View {
                                     ReviewByTagPickerScreen(tagType: tagType)
                                 } label: {
                                     TagReviewEntryCard(
-                                        title: "按\(tagType.title)回顾",
+                                        title: "\(tagType.title)线索",
                                         subtitle: tagReviewSubtitle(for: tagType),
                                         count: visibleTagCounts[tagType] ?? 0
                                     )
@@ -189,7 +189,7 @@ struct ReviewHomeScreen: View {
 
         switch tagType {
         case .project:
-            return "按长期项目整理回顾"
+            return "按长期线索整理回看"
         case .habit:
             return "按行为模式看变化"
         case .theme:

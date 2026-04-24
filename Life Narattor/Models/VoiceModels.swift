@@ -20,7 +20,7 @@ enum TranscriptionStatus: String, CaseIterable, Identifiable, Codable {
         case .pending:
             return "正在转写…"
         case .completed:
-            return "记录成功"
+            return "已接住"
         case .failed:
             return "转写失败 · 重试"
         case .offline:

@@ -91,8 +91,8 @@ struct CaptureCardView: View {
 
     private var statusText: String {
         if item.processingState == .atomsReady || item.processingState == .tagsSuggested {
-            return "已拆分为 \(item.atomsCount) 条"
+            return "已整理成 \(item.atomsCount) 个片段"
         }
-        return "已记录"
+        return "已接住"
     }
 }

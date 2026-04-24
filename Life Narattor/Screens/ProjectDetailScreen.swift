@@ -59,7 +59,7 @@ struct ProjectDetailScreen: View {
             NavigationLink {
                 SearchScreen(initialQuery: project.name, initialFilter: .project)
             } label: {
-                Text("项目")
+                Text("线索")
                     .font(.caption)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
@@ -88,11 +88,11 @@ private struct ProjectTimelineTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("项目时间线")
+            Text("相关片段")
                 .font(.headline)
 
             if rows.isEmpty {
-                Text("这个项目还没有记录")
+                Text("这条线索还没有新的片段")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -138,9 +138,9 @@ private struct ProjectReviewTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("项目叙事")
+            Text("线索回看")
                 .font(.headline)
-            Text(narrativeText.isEmpty ? "这个项目还没有记录" : narrativeText)
+            Text(narrativeText.isEmpty ? "这条线索还没有足够片段，先保持安静。" : narrativeText)
                 .font(.body)
                 .foregroundStyle(narrativeText.isEmpty ? .secondary : .primary)
 
@@ -175,7 +175,7 @@ private struct ProjectReviewTab: View {
 
             if !summaryRows.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("项目片段")
+                    Text("相关片段")
                         .font(.headline)
                     ForEach(summaryRows.prefix(3)) { row in
                         Text("• \(row.atom.content)")
@@ -215,7 +215,7 @@ private struct ProjectReviewTab: View {
             }
             .font(.headline)
 
-            Button("生成项目回顾") {}
+            Button("整理这条线索") {}
                 .buttonStyle(.bordered)
         }
         .onAppear(perform: loadReview)
@@ -291,7 +291,7 @@ private struct ProjectReviewTab: View {
             return
         }
         let top = rows.map { $0.atom.content }.prefix(3).joined(separator: "、")
-        narrativeText = "我在这个项目里记录了\(rows.count)条片段，主要是：\(top)。"
+        narrativeText = "围绕这条线索，我已经留下了\(rows.count)条片段，主要是：\(top)。"
     }
 }
 

@@ -17,6 +17,7 @@ struct ProjectsListScreen: View {
                                 NavigationLink(value: project) {
                                     ProjectRowCard(project: project)
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -27,7 +28,7 @@ struct ProjectsListScreen: View {
             .padding(.top, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("项目")
+            .navigationTitle("线索")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
@@ -46,7 +47,7 @@ struct ProjectsListScreen: View {
 
     private var emptyStateView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("还没有项目。创建一个项目标签，之后好整理回顾。")
+            Text("还没有长期线索。等你多记几次，常出现的项目、主题和方向会在这里沉淀下来。")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
@@ -64,7 +65,7 @@ struct ProjectsListScreen: View {
         let results = (try? context.fetch(request)) ?? []
         projects = results.map { tag in
             let count = fetchAtomCount(tagID: tag.id)
-            let summary = count == 0 ? "暂无关联记录" : "关联 \(count) 条片段"
+            let summary = count == 0 ? "还没有新的片段" : "\(count) 条相关片段"
             return ProjectItem(
                 id: tag.id,
                 name: tag.name,

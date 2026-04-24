@@ -247,12 +247,17 @@ struct RecordFeedScreen: View {
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("今天 · \(formattedDate(Date()))")
                 .font(.title2.weight(.semibold))
             Text(headerSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if selectedSurface == .record {
+                Text("随手记一句就好，我会安静整理成之后能回看的线索。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 16)
     }
@@ -268,8 +273,11 @@ struct RecordFeedScreen: View {
     }
 
     private var filterBar: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             if selectedSurface == .record {
+                Text("回看范围")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
                 Picker("范围", selection: $selectedScope) {
                     ForEach(RecordListScope.allCases) { scope in
                         Text(scope.title).tag(scope)
@@ -304,11 +312,21 @@ struct RecordFeedScreen: View {
     }
 
     private var listEmptyStateView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "text.bubble")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.secondary)
             Text(emptyStateMessage)
-                .font(.body)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text("可以很短，也可以很碎。先留下这一刻，整理的事之后再说。")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding(.horizontal, 16)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -428,9 +446,9 @@ struct RecordFeedScreen: View {
         }
 
         if item.processingState == .atomsReady || item.processingState == .tagsSuggested {
-            return "已拆成 \(item.atomsCount) 条"
+            return "已整理成 \(item.atomsCount) 个片段"
         }
-        return "已记录"
+        return "已接住"
     }
 
     private var autoSplitProgressView: some View {
@@ -475,16 +493,16 @@ struct RecordFeedScreen: View {
     }
 
     private var searchPlaceholder: String {
-        "搜索记录内容、转写或回应"
+        "找一句记过的话或线索"
     }
 
     private var inputPlaceholder: String {
-        selectedSurface == .record ? "记录当下发生的事或想法…" : "告诉助手你想梳理什么…"
+        selectedSurface == .record ? "记一句当下发生的事或想法…" : "告诉助手你想梳理什么…"
     }
 
     private var headerSubtitle: String {
         if selectedSurface == .record {
-            return "共 \(recordFilteredCaptures.count) 条记录"
+            return "已记下 \(recordFilteredCaptures.count) 条"
         }
         return "\(viewModel.activeAssistThreadTitle) · 确认后写入记录"
     }

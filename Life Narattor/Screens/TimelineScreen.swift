@@ -90,7 +90,7 @@ struct TimelineScreen: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("时间线会按日期把记录整理出来。先去记录页写下第一条，这里就会开始出现内容。")
+                Text("写下一句话后，这里会按日期慢慢长出回看的脉络。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +102,7 @@ struct TimelineScreen: View {
                 HStack(spacing: 8) {
                     Image(systemName: "square.and.pencil")
                         .font(.subheadline.weight(.semibold))
-                    Text("去记录页开始记录")
+                    Text("去记录页记一句")
                         .font(.subheadline.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -110,7 +110,7 @@ struct TimelineScreen: View {
             }
             .buttonStyle(.borderedProminent)
 
-            Text("写下记录后再回到这里，就可以按天回看。")
+            Text("不用一次写完整，零散记录也会被放回对应的日子里。")
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -258,9 +258,9 @@ private struct TimelineDayCard: View {
                                 .font(.headline)
                                 .foregroundStyle(.primary)
 
-                            Text(day.hasNarrative ? "查看当天整理" : "生成当天叙事")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.blue)
+                            Text("\(day.highlights.count) 条记录 · 可回看")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
 
                         Spacer(minLength: 0)
@@ -271,10 +271,13 @@ private struct TimelineDayCard: View {
                             .padding(.top, 4)
                     }
 
-                    Text(day.hasNarrative ? "这一天已经有足够材料，可以直接进入查看整理结果。" : "这一天已有记录，进入后可以继续整理成更完整的当天叙事。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(day.hasNarrative ? "查看今日叙事" : "整理成今日叙事")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.blue)
+                        .padding(.vertical, 7)
+                        .padding(.horizontal, 10)
+                        .background(Color.blue.opacity(0.10))
+                        .clipShape(Capsule())
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())

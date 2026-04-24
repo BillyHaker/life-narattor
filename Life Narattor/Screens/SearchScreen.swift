@@ -93,14 +93,14 @@ struct SearchScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("AI 回顾")
                 .font(.headline)
-            Text("直接问一个回顾问题，我会按记录、标签和时间线整理线索。")
+            Text("问一句想回看的事，我会先找事实，再整理它们之间可能的联系。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.secondary)
-                TextField("例如：岗位切换前后，我的心情有变化吗？", text: $query)
+                TextField("例如：我最近反复卡住的地方是什么？", text: $query)
                     .submitLabel(.search)
                     .textFieldStyle(.plain)
                     .onSubmit {
@@ -115,7 +115,7 @@ struct SearchScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button("分析") {
+                Button("回看") {
                     performRetrievalSearch()
                 }
                 .font(.subheadline.weight(.semibold))
@@ -147,7 +147,7 @@ struct SearchScreen: View {
             .buttonStyle(.plain)
 
             Menu {
-                Button("全部分组") {
+                Button("全部线索") {
                     selectedFilter = nil
                 }
                 ForEach(SearchFilterType.allCases.filter { $0 != .dateRange }) { filter in
@@ -157,7 +157,7 @@ struct SearchScreen: View {
                 }
             } label: {
                 filterPill(
-                    title: selectedFilter?.title ?? "标签组",
+                    title: selectedFilter?.title ?? "线索",
                     systemImage: "tag"
                 )
             }
@@ -180,13 +180,13 @@ struct SearchScreen: View {
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if isSearching {
-                reviewStatusCard(text: "AI 正在整理记录和标签线索…")
+                reviewStatusCard(text: "正在从记录里找线索…")
             } else if let plan = activeRetrievalPlan, plan.mode == .overview {
                 VStack(alignment: .leading, spacing: 12) {
                     if isLoadingOverviewAIAnalysis {
-                        reviewStatusCard(text: "AI 正在整理这段时间的主要变化…")
+                        reviewStatusCard(text: "正在整理这段时间的主要变化…")
                     } else if let overviewAIAnalysis, !overviewAIAnalysis.isEmpty {
-                        reviewSectionCard(title: "事实与联系", accent: "回顾") {
+                        reviewSectionCard(title: "事实与联系", accent: "先看事实") {
                             reviewAnalysisContent(overviewAIAnalysis)
                         }
                     }
@@ -200,7 +200,7 @@ struct SearchScreen: View {
                     if isLoadingFocusedAIAnalysis {
                         reviewStatusCard(text: "AI 正在分析证据…")
                     } else if let focusedAIAnalysis, !focusedAIAnalysis.isEmpty {
-                        reviewSectionCard(title: "事实与联系", accent: "回顾") {
+                        reviewSectionCard(title: "事实与联系", accent: "先看事实") {
                             reviewAnalysisContent(focusedAIAnalysis)
                         }
                     }
@@ -264,18 +264,18 @@ struct SearchScreen: View {
                 }
             } else if results.isEmpty, shouldShowEmptyState {
                 reviewSectionCard(title: "没有足够的回顾材料", accent: "空") {
-                    Text("试试把问题问得更具体，或调整时间范围、标签组。")
+                    Text("试试换个说法，或只看某段时间、某条线索。")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             } else if !results.isEmpty {
                 relatedRecordsCard
             } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reviewSectionCard(title: "可以这样问", accent: "示例") {
+                reviewSectionCard(title: "最近可以这样回看", accent: "轻点即问") {
                     VStack(alignment: .leading, spacing: 8) {
-                        starterPrompt("我过去一周主要发生了什么变化")
-                        starterPrompt("岗位切换前后，我的心情有变化吗")
-                        starterPrompt("最近胃口不好，和工作压力有没有关系")
+                        starterPrompt("最近有什么事情反复出现")
+                        starterPrompt("我上次也有类似状态是什么时候")
+                        starterPrompt("哪条线索最近最值得继续看")
                     }
                 }
             }
@@ -433,7 +433,7 @@ struct SearchScreen: View {
         let snapshots = MemoryIndexStore(context: context).search(plan: plan)
         results = snapshots.compactMap { makeRetrievalResult(from: $0, plan: plan) }
         if results.isEmpty {
-            errorMessage = "没有找到足够相关的记录，可以换个问题、时间范围或标签组再试。"
+            errorMessage = "没有找到足够相关的记录，可以换个问法、时间范围或线索再试。"
         }
         isSearching = false
     }
@@ -606,7 +606,7 @@ struct SearchScreen: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("AI 正在结合当前回顾材料继续分析…")
+                        Text("正在结合这次回看的材料继续整理…")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

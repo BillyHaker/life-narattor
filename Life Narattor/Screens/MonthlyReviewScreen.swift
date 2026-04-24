@@ -12,12 +12,12 @@ struct MonthlyReviewScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("AI 回顾分析")
+                    Text("本月线索")
                         .font(.headline)
                     if isLoadingAnalysis {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("AI 正在整理本月回顾…")
+                            Text("正在整理本月回顾…")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }

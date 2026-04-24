@@ -11,7 +11,7 @@ struct DayDetailScreen: View {
     @State private var capturesByPart: [DayPart: [CaptureRow]] = [:]
     @State private var selectedCapture: CaptureItem? = nil
     @State private var isSourcesExpanded: Bool = false
-    @State private var narrativeText: String = "今天还没有记录，先记一条再来生成叙事。"
+    @State private var narrativeText: String = "这一天还没有可整理的记录。"
     @State private var narrativeMaterial: NarrativeMaterial? = nil
     @State private var aiAnalysisText: String = ""
     @State private var isLoadingAIAnalysis = false
@@ -73,7 +73,7 @@ struct DayDetailScreen: View {
                 Button("编辑叙事") {}
                     .buttonStyle(.bordered)
                     .disabled(true)
-                Button("重新生成") {
+                Button("重新整理") {
                     refreshDayNarrative(forceAIRefresh: true)
                 }
                 .buttonStyle(.bordered)
@@ -85,7 +85,7 @@ struct DayDetailScreen: View {
     private var commentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("AI 的回应")
+                Text("AI 轻回应")
                     .font(.headline)
                 Spacer()
                 Toggle("关闭回应", isOn: $isCommentEnabled)
@@ -104,7 +104,7 @@ struct DayDetailScreen: View {
                     if isLoadingAIAnalysis {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("AI 正在整理这一天的线索…")
+                            Text("正在整理这一天的线索…")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -112,7 +112,7 @@ struct DayDetailScreen: View {
                         Text(aiAnalysisErrorMessage)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text(aiAnalysisText.isEmpty ? "这一天的记录还不足以形成 AI 分析。" : aiAnalysisText)
+                        Text(aiAnalysisText.isEmpty ? "记录还比较少，我先不硬分析。再多记几条后，这里会更有参考。" : aiAnalysisText)
                             .foregroundStyle(aiAnalysisText.isEmpty ? .secondary : .primary)
                     }
                 }
@@ -215,7 +215,7 @@ struct DayDetailScreen: View {
 
     private var fallbackNarrativeParagraph: String {
         guard !sourceMappings.isEmpty else {
-            return "今天还没有记录，先记一条再来生成叙事。"
+            return "这一天还没有可整理的记录。"
         }
         return sourceMappings.map(\.sentence).joined()
     }
