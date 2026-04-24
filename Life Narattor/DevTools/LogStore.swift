@@ -121,6 +121,9 @@ final class TranscriptionDebugStore: ObservableObject {
 
     func providerLabel(for aiService: AIService) -> String {
         let typeName = String(describing: type(of: aiService))
+        if typeName.contains("MockAIService") {
+            return "ai.mock"
+        }
         if typeName.contains("BackendAIService") {
             return "ai.backend"
         }

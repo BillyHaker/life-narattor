@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import Life_Narattor
 
+@MainActor
 struct AtomTagStoreTests {
     @Test("markAsKey persists to store")
     func markAsKeyPersists() throws {
