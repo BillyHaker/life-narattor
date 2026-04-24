@@ -18,6 +18,7 @@ struct IndexedCaptureSnapshot: Identifiable {
     let visibleTags: [IndexedTagSignal]
     let hiddenTags: [IndexedTagSignal]
     let tagHints: [String]
+    let systemSignals: [SystemSignal]
     let score: Double
 }
 
@@ -38,10 +39,11 @@ struct MemoryIndexStore {
                     visibleTags: snapshot.visibleTags,
                     hiddenTags: snapshot.hiddenTags,
                     tagHints: snapshot.tagHints,
+                    systemSignals: snapshot.systemSignals,
                     score: score
                 )
             }
-            .filter { $0.score > 0 }
+            .filter { shouldInclude(snapshot: $0, plan: plan) }
             .sorted { lhs, rhs in
                 if lhs.score == rhs.score {
                     return lhs.createdAt > rhs.createdAt
@@ -67,6 +69,7 @@ struct MemoryIndexStore {
                     visibleTags: snapshot.visibleTags.map(\.name).sorted(),
                     hiddenTags: snapshot.hiddenTags.map(\.name).sorted(),
                     tagHints: unit.tagHints,
+                    systemSignals: snapshot.systemSignals,
                     score: snapshot.score + (unit.confidence ?? 0)
                 )
             }
@@ -110,6 +113,7 @@ struct MemoryIndexStore {
             visibleTags: signals.filter { $0.isVisible },
             hiddenTags: signals.filter { !$0.isVisible },
             tagHints: hints,
+            systemSignals: systemSignals(for: entity),
             score: 0
         )
     }
@@ -218,6 +222,71 @@ struct MemoryIndexStore {
         }
 
         return total
+    }
+
+    private func shouldInclude(snapshot: IndexedCaptureSnapshot, plan: RetrievalPlan) -> Bool {
+        if snapshot.score > 0 {
+            return true
+        }
+        return plan.mode == .overview && !snapshot.units.isEmpty
+    }
+
+    private func systemSignals(for entity: CaptureEntity) -> [SystemSignal] {
+        let calendar = Calendar.current
+        let createdAt = entity.createdAt
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_CN")
+        dateFormatter.calendar = calendar
+
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateValue = dateFormatter.string(from: createdAt)
+
+        dateFormatter.dateFormat = "yyyy-MM"
+        let monthValue = dateFormatter.string(from: createdAt)
+
+        dateFormatter.dateFormat = "EEEE"
+        let weekdayValue = dateFormatter.string(from: createdAt)
+
+        let weekYear = calendar.component(.yearForWeekOfYear, from: createdAt)
+        let weekOfYear = calendar.component(.weekOfYear, from: createdAt)
+        let weekValue = String(format: "%04d-W%02d", weekYear, weekOfYear)
+
+        let dayPart = DayPart(rawValue: entity.dayPart ?? "") ?? dayPart(for: createdAt)
+        let inputType = CaptureInputType(rawValue: entity.inputType ?? "") ?? .text
+        let mode = CaptureInputMode(rawValue: entity.mode ?? "") ?? .log
+        let processingState = CaptureProcessingState(rawValue: entity.processingState ?? "") ?? .cleanReady
+
+        return [
+            SystemSignal(kind: .date, value: dateValue, displayName: "日期：\(dateValue)"),
+            SystemSignal(kind: .week, value: weekValue, displayName: "周：\(weekValue)"),
+            SystemSignal(kind: .month, value: monthValue, displayName: "月份：\(monthValue)"),
+            SystemSignal(kind: .weekday, value: weekdayValue, displayName: "星期：\(weekdayValue)"),
+            SystemSignal(kind: .dayPart, value: dayPart.title, displayName: "时间段：\(dayPart.title)"),
+            SystemSignal(kind: .inputType, value: inputType.rawValue, displayName: "输入方式：\(inputTypeTitle(inputType))"),
+            SystemSignal(kind: .source, value: mode.rawValue, displayName: "来源：\(mode.title)"),
+            SystemSignal(kind: .processingState, value: processingState.rawValue, displayName: "处理状态：\(processingState.displayText)")
+        ]
+    }
+
+    private func dayPart(for date: Date) -> DayPart {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 5..<12:
+            return .morning
+        case 12..<18:
+            return .afternoon
+        default:
+            return .evening
+        }
+    }
+
+    private func inputTypeTitle(_ inputType: CaptureInputType) -> String {
+        switch inputType {
+        case .text:
+            return "文字"
+        case .voice:
+            return "语音"
+        }
     }
 
     private func scopeWeight(type: TagType, plan: RetrievalPlan) -> Double {

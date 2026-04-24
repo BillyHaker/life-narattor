@@ -79,6 +79,23 @@ struct RetrievalPlan: Codable {
     let compressionPolicy: RetrievalCompressionPolicy
 }
 
+enum SystemSignalKind: String, Codable {
+    case date
+    case week
+    case month
+    case weekday
+    case dayPart
+    case inputType
+    case source
+    case processingState
+}
+
+struct SystemSignal: Codable, Hashable {
+    let kind: SystemSignalKind
+    let value: String
+    let displayName: String
+}
+
 struct NarrativeBriefUnit: Identifiable, Codable {
     let id: UUID
     let captureID: UUID
@@ -90,6 +107,7 @@ struct NarrativeBriefUnit: Identifiable, Codable {
     let visibleTags: [String]
     let hiddenTags: [String]
     let tagHints: [String]
+    let systemSignals: [SystemSignal]
     let score: Double
 }
 

@@ -779,7 +779,7 @@ async function handleFocusedAnalysis(body) {
     };
 
     const output = await callOpenAI({
-        instructions: "Return JSON only. Reply in concise natural Chinese using record/review language, not English. If followup_question is empty, write a short evidence note: first facts directly supported by the evidence, then weaker links or signals, then 1-2 short follow-up questions. If followup_question is present, answer only that follow-up from the current evidence bundle and keep the answer short. Stay evidence-bound. Do not claim strong causality unless the evidence explicitly supports it. If evidence is limited, say it is only a tentative signal. Prefer the labels: 事实： / 联系： / 可继续问：",
+        instructions: "Return JSON only. Reply in concise natural Chinese using record/review language, not English. system_signals are factual context such as date, weekday, time segment, input source, and processing state. Use them only as factual context. If followup_question is empty, write a short evidence note: first facts directly supported by the evidence, then weaker links or signals, then 1-2 short follow-up questions. If followup_question is present, answer only that follow-up from the current evidence bundle and keep the answer short. Stay evidence-bound. Do not claim strong causality unless the evidence explicitly supports it. If evidence is limited, say it is only a tentative signal. Prefer the labels: 事实： / 联系： / 可继续问：",
         userInput: JSON.stringify({
             leading_question: body?.leading_question || "",
             top_signals: Array.isArray(body?.top_signals) ? body.top_signals : [],
@@ -806,7 +806,7 @@ async function handleReviewAnalysis(body) {
     };
 
     const output = await callOpenAI({
-        instructions: "Return JSON only. Reply in concise natural Chinese using record/review language, not English. You are reviewing structured life material for a time period. If followup_question is empty, write a short review note: first facts directly visible in the records, then weaker links or insights that are not obvious from linear diary reading, then 1-2 short follow-up questions. If followup_question is present, answer only that follow-up from the current material and keep the answer short. Stay evidence-bound. Do not invent motives or facts. Do not use coaching tone. Do not claim strong causality. Keep the reply short enough to fit on the first screen. Prefer the labels: 事实： / 联系： / 可继续问：",
+        instructions: "Return JSON only. Reply in concise natural Chinese using record/review language, not English. You are reviewing structured life material for a time period. system_signals are factual context such as date, weekday, time segment, input source, and processing state. Use them only as factual context. If followup_question is empty, write a short review note: first facts directly visible in the records, then weaker links or insights that are not obvious from linear diary reading, then 1-2 short follow-up questions. If followup_question is present, answer only that follow-up from the current material and keep the answer short. Stay evidence-bound. Do not invent motives or facts. Do not use coaching tone. Do not claim strong causality. Keep the reply short enough to fit on the first screen. Prefer the labels: 事实： / 联系： / 可继续问：",
         userInput: JSON.stringify({
             period_name: body?.period_name || "",
             followup_question: body?.followup_question || "",

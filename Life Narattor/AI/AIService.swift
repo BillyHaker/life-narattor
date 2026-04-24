@@ -237,6 +237,7 @@ final class OpenAIService: AIService {
             instructions: """
             Return JSON only. Reply in concise natural Chinese using record/review language, not English.
             You are analyzing structured evidence, not inventing facts.
+            system_signals are factual context such as date, weekday, time segment, input source, and processing state. Use them only as factual context.
             If followup_question is empty, first show facts directly supported by the evidence, then weaker links or signals, then 1-2 short follow-up questions.
             If followup_question is present, answer only that follow-up from the current evidence bundle and keep the answer short.
             Do not claim strong causality unless the evidence explicitly supports it.
@@ -261,6 +262,7 @@ final class OpenAIService: AIService {
             instructions: """
             Return JSON only. Reply in concise natural Chinese using record/review language, not English.
             You are reviewing structured life material for a time period.
+            system_signals are factual context such as date, weekday, time segment, input source, and processing state. Use them only as factual context.
             If followup_question is empty, write a short review note, not a report: first show facts that are directly visible in the records, then weaker links or insights that are not obvious from linear diary reading, then 1-2 short follow-up questions.
             If followup_question is present, answer only that follow-up from the current material and keep the answer short.
             Stay evidence-bound. Do not invent motives or facts. Do not use coaching tone. Do not claim strong causality.
@@ -717,7 +719,8 @@ final class OpenAIService: AIService {
                     "summary": unit.summary,
                     "context_attributes": unit.contextAttributes.map { ["name": $0.name, "value": $0.value] },
                     "behavioral_chain": unit.behavioralChain,
-                    "result_or_state": unit.resultOrState
+                    "result_or_state": unit.resultOrState,
+                    "system_signals": systemSignalsPayload(from: unit.systemSignals)
                 ]
             }
             return [
@@ -746,7 +749,8 @@ final class OpenAIService: AIService {
                 "result_or_state": unit.resultOrState,
                 "visible_tags": unit.visibleTags,
                 "hidden_tags": unit.hiddenTags,
-                "tag_hints": unit.tagHints
+                "tag_hints": unit.tagHints,
+                "system_signals": systemSignalsPayload(from: unit.systemSignals)
             ]
         }
         let sectionsPayload: [[String: Any]] = material.sections.map { section in
@@ -765,6 +769,16 @@ final class OpenAIService: AIService {
             "sections": sectionsPayload
         ]
         return jsonString(from: payload)
+    }
+
+    private func systemSignalsPayload(from signals: [SystemSignal]) -> [[String: String]] {
+        signals.map {
+            [
+                "type": $0.kind.rawValue,
+                "value": $0.value,
+                "display_name": $0.displayName
+            ]
+        }
     }
 
     private func quickAckSchema() -> [String: Any] {
@@ -1103,7 +1117,8 @@ final class BackendAIService: AIService {
                             summary: $0.summary,
                             contextAttributes: $0.contextAttributes.map { FocusedEvidenceAnalysisAttribute(name: $0.name, value: $0.value) },
                             behavioralChain: $0.behavioralChain,
-                            resultOrState: $0.resultOrState
+                            resultOrState: $0.resultOrState,
+                            systemSignals: $0.systemSignals.map { AnalysisSystemSignal(from: $0) }
                         )
                     }
                 )
@@ -1131,7 +1146,8 @@ final class BackendAIService: AIService {
                     summary: $0.summary,
                     contextAttributes: $0.contextAttributes.map { FocusedEvidenceAnalysisAttribute(name: $0.name, value: $0.value) },
                     behavioralChain: $0.behavioralChain,
-                    resultOrState: $0.resultOrState
+                    resultOrState: $0.resultOrState,
+                    systemSignals: $0.systemSignals.map { AnalysisSystemSignal(from: $0) }
                 )
             },
             sections: material.sections.map { NarrativeAnalysisSection(title: $0.title, bullets: $0.bullets) }
@@ -1558,17 +1574,37 @@ private struct FocusedEvidenceAnalysisAttribute: Encodable {
     let value: String
 }
 
+private struct AnalysisSystemSignal: Encodable {
+    let type: String
+    let value: String
+    let displayName: String
+
+    init(from signal: SystemSignal) {
+        type = signal.kind.rawValue
+        value = signal.value
+        displayName = signal.displayName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case value
+        case displayName = "display_name"
+    }
+}
+
 private struct FocusedEvidenceAnalysisUnit: Encodable {
     let summary: String
     let contextAttributes: [FocusedEvidenceAnalysisAttribute]
     let behavioralChain: [String]
     let resultOrState: [String]
+    let systemSignals: [AnalysisSystemSignal]
 
     private enum CodingKeys: String, CodingKey {
         case summary
         case contextAttributes = "context_attributes"
         case behavioralChain = "behavioral_chain"
         case resultOrState = "result_or_state"
+        case systemSignals = "system_signals"
     }
 }
 
