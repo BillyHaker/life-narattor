@@ -109,12 +109,12 @@ private struct PrivacyIntroScreen: View {
 
                     PrivacyPoint(
                         title: "联网功能会单独处理",
-                        detail: "只有在你主动使用 AI 对话、AI 回顾、转写或整理功能时，应用才会通过我们的后台代理发起联网请求。"
+                        detail: "只有在你主动使用 AI 对话、AI 回顾、转写或整理功能时，应用才会把必要内容通过我们的后台代理发送给模型服务处理。"
                     )
 
                     PrivacyPoint(
-                        title: "不会把 provider key 发给测试用户",
-                        detail: "测试版中的 AI 功能通过平台后台统一调用，不会把上游模型的 API key 暴露给用户端。"
+                        title: "不会暴露模型密钥",
+                        detail: "测试版中的 AI 功能通过平台后台统一调用，不会把上游模型服务的密钥放进应用或发给用户端。"
                     )
                 }
 

@@ -1,6 +1,6 @@
 # Life Narrator AI Proxy (Minimal)
 
-This server keeps the OpenAI API key off-device and enforces basic protections.
+This server keeps upstream AI provider keys off-device and enforces basic protections.
 
 ## Why
 - Client-embedded API keys are unsafe and easily extracted.
@@ -17,10 +17,10 @@ This server keeps the OpenAI API key off-device and enforces basic protections.
 - `OPENAI_API_KEY` (required)
 - `OPENAI_BASE` (optional, default `https://api.openai.com/v1/responses`)
 - `OPENAI_AUDIO_BASE` (optional, default `https://api.openai.com/v1/audio/transcriptions`)
-- `TRANSCRIBE_PROVIDER` (optional, `openai` or `doubao`, default `openai`)
+- `TRANSCRIBE_PROVIDER` (optional, `openai` or `doubao`, default `doubao`)
 - `PORT` (optional, default `8787`)
 
-### Doubao ASR (only when `TRANSCRIBE_PROVIDER=doubao`)
+### Doubao ASR (default transcription provider)
 - `DOUBAO_ASR_URL` (required, set from Volcengine endpoint)
 - `DOUBAO_APP_ID` (required)
 - `DOUBAO_ACCESS_TOKEN` (required)

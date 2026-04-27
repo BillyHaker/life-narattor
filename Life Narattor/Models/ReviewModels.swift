@@ -9,9 +9,9 @@ enum ReviewPeriod: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .weekly:
-            return "本周回顾"
+            return "7 天回顾"
         case .monthly:
-            return "本月回顾"
+            return "30 天回顾"
         }
     }
 }

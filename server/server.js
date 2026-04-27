@@ -200,7 +200,7 @@ function normalizeTranscribeProvider(rawProvider) {
     if (provider === "openai" || provider === "doubao") {
         return provider;
     }
-    return "openai";
+    return "doubao";
 }
 
 function parseAuth(value) {

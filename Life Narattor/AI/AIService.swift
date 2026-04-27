@@ -32,10 +32,12 @@ enum AIServiceFactory {
             return BackendAIService(baseURL: baseURL, token: BackendConfig.token)
         }
 
+#if DEBUG
         if let apiKey = OpenAIConfig.apiKey, !apiKey.isEmpty {
             LogStore.shared.log("AIService=OpenAI", category: .ai)
             return OpenAIService(apiKey: apiKey)
         }
+#endif
 
         LogStore.shared.log("AIService=Unavailable", category: .ai)
         return UnavailableAIService()

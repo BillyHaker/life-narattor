@@ -42,7 +42,7 @@ struct WeeklyReviewScreen: View {
             .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("本周回顾")
+        .navigationTitle("7 天回顾")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemGroupedBackground))
         .onAppear(perform: loadWeeklyData)
@@ -51,12 +51,11 @@ struct WeeklyReviewScreen: View {
     private func loadWeeklyData() {
         let calendar = Calendar.current
         let now = Date()
-        let interval = calendar.dateInterval(of: .weekOfYear, for: now) ?? DateInterval(start: now, end: now)
-        let end = interval.end > interval.start ? interval.end.addingTimeInterval(-1) : interval.end
-        let range = RetrievalTimeRange(start: interval.start, end: end, label: "本周")
+        let start = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let range = RetrievalTimeRange(start: start, end: now, label: "过去 7 天")
         let service = ReviewRetrievalService(context: context)
 
-        guard let data = service.makeRangeReviewData(periodName: "本周", periodLabel: "当前这一周", range: range) else {
+        guard let data = service.makeRangeReviewData(periodName: "过去 7 天", periodLabel: "最近 7 天", range: range) else {
             reviewData = nil
             aiAnalysisText = ""
             isLoadingAnalysis = false
@@ -87,16 +86,16 @@ struct WeeklyReviewScreen: View {
     }
 
     private func overviewCard(_ reviewData: RangeReviewData) -> some View {
-        reviewCard(title: "本周总览", accent: reviewData.periodLabel) {
+        reviewCard(title: "7 天总览", accent: reviewData.periodLabel) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("这周先看整段，再决定要不要追进去某一天。")
+                Text("先看最近 7 天的整段变化，再决定要不要追进去某一天。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 if isLoadingAnalysis {
                     HStack(spacing: 8) {
                         ProgressView()
-                        Text("正在整理本周的整体变化…")
+                        Text("正在整理最近 7 天的整体变化…")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -249,8 +248,8 @@ struct WeeklyReviewScreen: View {
     }
 
     private var emptyStateCard: some View {
-        reviewCard(title: "本周还很轻", accent: "空") {
-            Text("这一周还没有足够的记录形成整段回顾。先随手记一点，周内回来再看。")
+        reviewCard(title: "最近 7 天还很轻", accent: "空") {
+            Text("最近 7 天还没有足够的记录形成整段回顾。先随手记一点，过几天再回来会更有脉络。")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }

@@ -12,18 +12,6 @@ struct ReviewHomeScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 12) {
-                        NavigationLink("回看本周") {
-                            WeeklyReviewScreen()
-                        }
-                        .buttonStyle(.bordered)
-
-                        NavigationLink("回看本月") {
-                            MonthlyReviewScreen()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("按线索回看")
                                 .font(.headline)

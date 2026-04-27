@@ -42,7 +42,7 @@ struct MonthlyReviewScreen: View {
             .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("本月回顾")
+        .navigationTitle("30 天回顾")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemGroupedBackground))
         .onAppear(perform: loadMonthlyData)
@@ -51,12 +51,11 @@ struct MonthlyReviewScreen: View {
     private func loadMonthlyData() {
         let calendar = Calendar.current
         let now = Date()
-        let interval = calendar.dateInterval(of: .month, for: now) ?? DateInterval(start: now, end: now)
-        let end = interval.end > interval.start ? interval.end.addingTimeInterval(-1) : interval.end
-        let range = RetrievalTimeRange(start: interval.start, end: end, label: "本月")
+        let start = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+        let range = RetrievalTimeRange(start: start, end: now, label: "过去 30 天")
         let service = ReviewRetrievalService(context: context)
 
-        guard let data = service.makeRangeReviewData(periodName: "本月", periodLabel: "当前这个月", range: range) else {
+        guard let data = service.makeRangeReviewData(periodName: "过去 30 天", periodLabel: "最近 30 天", range: range) else {
             reviewData = nil
             aiAnalysisText = ""
             isLoadingAnalysis = false
@@ -87,16 +86,16 @@ struct MonthlyReviewScreen: View {
     }
 
     private func overviewCard(_ reviewData: RangeReviewData) -> some View {
-        reviewCard(title: "本月总览", accent: reviewData.periodLabel) {
+        reviewCard(title: "30 天总览", accent: reviewData.periodLabel) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("先看这个月整体的主线，再决定要不要追进去某一天。")
+                Text("先看最近 30 天整体的主线，再决定要不要追进去某一天。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 if isLoadingAnalysis {
                     HStack(spacing: 8) {
                         ProgressView()
-                        Text("正在整理本月的整体变化…")
+                        Text("正在整理最近 30 天的整体变化…")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -141,7 +140,7 @@ struct MonthlyReviewScreen: View {
     private func evidenceCard(_ reviewData: RangeReviewData) -> some View {
         reviewCard(title: "证据", accent: "支撑") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("这些材料帮助确认这个月的判断，不需要把每天都重新看一遍。")
+                Text("这些材料帮助确认最近 30 天的判断，不需要把每天都重新看一遍。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -249,8 +248,8 @@ struct MonthlyReviewScreen: View {
     }
 
     private var emptyStateCard: some View {
-        reviewCard(title: "本月还很轻", accent: "空") {
-            Text("这个月还没有足够的记录形成整段回顾。先把片段留在这里，月底再回来会更有意思。")
+        reviewCard(title: "最近 30 天还很轻", accent: "空") {
+            Text("最近 30 天还没有足够的记录形成整段回顾。先把片段留在这里，过一段时间再回来会更有意思。")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }

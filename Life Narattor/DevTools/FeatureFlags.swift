@@ -44,7 +44,13 @@ final class FeatureFlags: ObservableObject {
     }
 
     var isAITranscriptionPreferred: Bool {
-        get { store.bool(forKey: Keys.isAITranscriptionPreferred) }
+        get {
+#if DEBUG
+            return store.bool(forKey: Keys.isAITranscriptionPreferred)
+#else
+            return true
+#endif
+        }
         set { set(newValue, for: Keys.isAITranscriptionPreferred) }
     }
 

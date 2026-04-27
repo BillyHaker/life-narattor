@@ -93,6 +93,7 @@ final class HybridVoiceTranscriptionService: VoiceTranscribing {
             )
             return trimmed
         } catch {
+#if DEBUG
             LogStore.shared.log("AI transcription fallback to local: \(error.localizedDescription)", category: .ai)
             debugStore.record(
                 phase: "fallback",
@@ -120,6 +121,17 @@ final class HybridVoiceTranscriptionService: VoiceTranscribing {
                 )
                 throw error
             }
+#else
+            LogStore.shared.log("AI transcription failed: \(error.localizedDescription)", category: .ai)
+            debugStore.record(
+                phase: "transcribe",
+                status: "failed",
+                provider: aiProvider,
+                message: "AI transcription failed; backend transcription is required in beta builds",
+                error: error
+            )
+            throw error
+#endif
         }
     }
 }

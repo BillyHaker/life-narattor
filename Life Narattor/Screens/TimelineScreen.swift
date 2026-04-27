@@ -207,9 +207,9 @@ struct TimelineScreen: View {
         case .today:
             return "今天先看节点，昨天的故事线会放在上面给你一个参考。"
         case .week:
-            return "回看最近 7 天留下的片段，顶部故事线来自已经整理过的过去 7 天。"
+            return "回看最近 7 天留下的片段；如果已有整理好的故事线，会放在上面。"
         case .month:
-            return "回看最近 30 天留下的片段，顶部故事线来自已经整理过的过去 30 天。"
+            return "回看最近 30 天留下的片段；如果已有整理好的故事线，会放在上面。"
         case .custom:
             return "这里按最近 30 天排开，但上面的故事线不会跟着实时跳动。"
         }
@@ -310,9 +310,9 @@ struct TimelineScreen: View {
         case .yesterday:
             return "昨天之后，这里会留下一条更完整的回看线索。今天先把片段放进来。"
         case .last7Days:
-            return "过去 7 天的故事线还没整理出来，先按日期看看最近留下了什么。"
+            return "过去 7 天的故事线还在等待整理，先按日期看看最近留下了什么。"
         case .last30Days:
-            return "过去 30 天的故事线还没整理出来，先把这些日期放在这里。"
+            return "过去 30 天的故事线还在等待整理，先把这些日期放在这里。"
         }
     }
 

@@ -113,17 +113,16 @@ final class TranscriptionDebugStore: ObservableObject {
         if BackendConfig.baseURL != nil {
             return "ai.backend"
         }
+#if DEBUG
         if let apiKey = OpenAIConfig.apiKey, !apiKey.isEmpty {
             return "ai.openai"
         }
+#endif
         return "ai.unavailable"
     }
 
     func providerLabel(for aiService: AIService) -> String {
         let typeName = String(describing: type(of: aiService))
-        if typeName.contains("MockAIService") {
-            return "ai.mock"
-        }
         if typeName.contains("BackendAIService") {
             return "ai.backend"
         }
