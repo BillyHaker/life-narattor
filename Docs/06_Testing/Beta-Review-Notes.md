@@ -14,10 +14,11 @@ Life Narattor is a personal recording app that helps users capture notes, voice 
 - Assistant conversation
 - Assistant conversation -> draft record -> confirm before save
 - AI Review as the primary review entry
+- Timeline review for Today / 7 days / 30 days
 
 ## Hidden / not exposed in this beta
-- Weekly/monthly automatic review entry points remain hidden.
-- Dev tools are not intended for tester-visible use.
+- Legacy weekly/monthly calendar review entry points remain hidden.
+- Debug/Dev tools are only compiled into debug builds and are not tester-visible in TestFlight / Release.
 - Long-form narrative generation and bring-your-own-API are not part of this beta.
 
 ## Reviewer note
