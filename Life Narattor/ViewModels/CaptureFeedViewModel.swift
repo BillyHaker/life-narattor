@@ -83,6 +83,7 @@ final class CaptureFeedViewModel: ObservableObject {
     func activateIfNeeded() {
         guard !didActivateObservers else { return }
         registerRecordingObservers()
+        registerDebugObservers()
         registerNetworkObserver()
         didActivateObservers = true
         schedulePendingAtomizationIfPossible()
@@ -130,11 +131,16 @@ final class CaptureFeedViewModel: ObservableObject {
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
 
         let entities = (try? context.fetch(request)) ?? []
-        let pending = entities.filter { entity in
-            guard let cleanText = entity.cleanText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !cleanText.isEmpty else { return false }
-            let state = resolveProcessingState(from: entity)
-            return entity.atomsCount == 0 && state == .pendingSplit
+        let pending = entities.filter(\.shouldAutoAtomizeForFormalRecord)
+
+        var didPromoteState = false
+        for entity in pending where entity.resolvedReviewProcessingState == .cleanReady {
+            entity.processingState = CaptureProcessingState.pendingSplit.rawValue
+            entity.atomizationError = nil
+            didPromoteState = true
+        }
+        if didPromoteState {
+            saveContext()
         }
 
         guard !prioritizedCaptureIDs.isEmpty else { return pending }
@@ -442,6 +448,9 @@ final class CaptureFeedViewModel: ObservableObject {
 
         artifact.status = AssistArchiveStatus.saved.rawValue
         artifact.updatedAt = Date()
+        if let capture = fetchCaptureEntity(captureID: captureID) {
+            _ = ReviewMaterialRepairService(context: context).backfillLegacyAssistArchivePayloads(for: [capture])
+        }
         saveContext()
         loadCaptures()
     }
@@ -1643,7 +1652,22 @@ final class CaptureFeedViewModel: ObservableObject {
             }
         }
 
-        notificationObservers = [interruptionObserver, backgroundObserver]
+        notificationObservers.append(contentsOf: [interruptionObserver, backgroundObserver])
+    }
+
+    private func registerDebugObservers() {
+        let repairObserver = NotificationCenter.default.addObserver(
+            forName: .capturePendingAtomizationRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.schedulePendingAtomizationIfPossible()
+                self?.loadCaptures()
+            }
+        }
+
+        notificationObservers.append(repairObserver)
     }
 
     private func scheduleRecordingAutoStop() {
@@ -2107,8 +2131,8 @@ final class CaptureFeedViewModel: ObservableObject {
         assistRecord: AssistArchiveRecord?,
         revisionCount: Int = 0
     ) -> CaptureItem {
-        let mode = CaptureInputMode(rawValue: entity.mode ?? "") ?? .log
-        let state = resolveProcessingState(from: entity)
+        let mode = entity.resolvedInputMode
+        let state = entity.resolvedReviewProcessingState
         let inputType = CaptureInputType(rawValue: entity.inputType ?? "") ?? .text
         let transcriptionStatus = TranscriptionStatus(rawValue: entity.transcriptionStatus ?? "")
 
@@ -2137,20 +2161,7 @@ final class CaptureFeedViewModel: ObservableObject {
     }
 
     private func resolveProcessingState(from entity: CaptureEntity) -> CaptureProcessingState {
-        if let stored = entity.processingState,
-           let state = CaptureProcessingState(rawValue: stored) {
-            return state
-        }
-
-        if entity.cleanText == nil {
-            return .pendingClean
-        }
-
-        if entity.atomsCount > 0 {
-            return .atomsReady
-        }
-
-        return .pendingSplit
+        entity.resolvedReviewProcessingState
     }
 
     private func loadArtifacts(for captureIds: [UUID]) -> [UUID: AssistArchiveRecord] {
@@ -2545,4 +2556,5 @@ private final class NetworkMonitor {
 
 extension Notification.Name {
     static let captureProcessingStateChanged = Notification.Name("captureProcessingStateChanged")
+    static let capturePendingAtomizationRequested = Notification.Name("capturePendingAtomizationRequested")
 }

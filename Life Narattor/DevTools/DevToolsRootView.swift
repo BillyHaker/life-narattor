@@ -38,6 +38,9 @@ struct DevToolsRootView: View {
                 NavigationLink("All Tags") {
                     DevToolsTagsView(context: context, aiService: aiService)
                 }
+                NavigationLink("Review Material Debug") {
+                    DevToolsReviewMaterialView(context: context)
+                }
                 NavigationLink("Diagnostics Export") {
                     DevToolsDiagnosticsView(storage: storage, featureFlags: featureFlags, logStore: logStore)
                 }

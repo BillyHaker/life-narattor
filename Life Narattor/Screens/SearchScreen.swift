@@ -343,7 +343,7 @@ struct SearchScreen: View {
 
     private func dayForGroup(_ group: (date: Date, items: [SearchResultItem])) -> TimelineDay? {
         guard !group.items.isEmpty else { return nil }
-        let highlights = group.items.map { $0.snippet }.prefix(6)
+        let snippets = group.items.map(\.snippet)
         let captureIDs = group.items.compactMap { item in
             switch item.source {
             case .capture(let capture):
@@ -352,12 +352,17 @@ struct SearchScreen: View {
                 return atom.captureID
             }
         }
+        let primaryLine = snippets.first ?? "这一天留下了一些片段。"
+        let secondaryLines = Array(snippets.dropFirst().prefix(2))
         return TimelineDay(
             id: UUID(),
             date: group.date,
-            highlights: Array(highlights),
-            highlightCaptureIDs: Array(captureIDs.prefix(6)),
-            hasNarrative: group.items.count >= 3
+            recordCount: group.items.count,
+            dayParts: [],
+            primaryLine: primaryLine,
+            secondaryLines: secondaryLines,
+            highlightCaptureIDs: Array(captureIDs.dropFirst().prefix(2)),
+            hasGeneratedNarrative: false
         )
     }
 

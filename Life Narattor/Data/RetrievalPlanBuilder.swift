@@ -35,6 +35,22 @@ struct RetrievalPlanBuilder {
         )
     }
 
+    func makeSystemOverviewPlan(periodLabel: String, range: RetrievalTimeRange) -> RetrievalPlan {
+        RetrievalPlan(
+            mode: .overview,
+            questionShape: .openReview,
+            query: "系统范围回顾：\(periodLabel)",
+            timeRange: range,
+            focusAnchor: nil,
+            relationAnchors: [],
+            primaryFilters: [],
+            secondaryFilters: [],
+            tagScopeWeights: .overviewDefault,
+            rankingWeights: .overviewDefault,
+            compressionPolicy: compressionPolicy(for: .overview, shape: .openReview)
+        )
+    }
+
     private func inferredMode(for query: String, explicitMatches: [(type: TagType, name: String)]) -> RetrievalMode {
         if !explicitMatches.isEmpty {
             return .focused
@@ -224,7 +240,7 @@ struct RetrievalPlanBuilder {
     }
 
     func makeOpenReviewPlan(periodLabel: String, range: RetrievalTimeRange) -> RetrievalPlan {
-        build(query: "我\(periodLabel)都干了什么，有什么主要变化", timeRangeOverride: range)
+        makeSystemOverviewPlan(periodLabel: periodLabel, range: range)
     }
 
     private func inferredFocusAnchor(for query: String, shape: ReviewQuestionShape) -> String? {

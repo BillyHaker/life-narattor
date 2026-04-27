@@ -3,9 +3,12 @@ import SwiftUI
 
 struct TimelineScreen: View {
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Binding private var selectedTab: RootTab
     @State private var selectedScope: TimelineScope = .today
     @State private var days: [TimelineDay] = []
+    @State private var snapshots: [TimelineReviewSnapshotKind: TimelineReviewSnapshotPayload] = [:]
+    @State private var isRefreshingSnapshots = false
     @State private var selectedDay: TimelineDay? = nil
     @State private var selectedCapture: CaptureItem? = nil
     @State private var selectedAtom: AtomItem? = nil
@@ -24,20 +27,27 @@ struct TimelineScreen: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 18) {
+                headerView
+
                 Picker("范围", selection: $selectedScope) {
-                    ForEach(TimelineScope.allCases) { scope in
+                    ForEach(TimelineScope.timelineTabs) { scope in
                         Text(scope.title).tag(scope)
                     }
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
 
-                if days.isEmpty {
-                    emptyStateView
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 16) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        if shouldShowRangeSummary {
+                            rangeSummaryView
+
+                        }
+
+                        if days.isEmpty {
+                            emptyStateView
+                        } else {
                             ForEach(days) { day in
                                 TimelineDayCard(
                                     day: day,
@@ -46,15 +56,15 @@ struct TimelineScreen: View {
                                         let ids = day.highlightCaptureIDs
                                         guard ids.indices.contains(index) else { return }
                                         let captureID = ids[index]
-                                        let text = day.highlights.indices.contains(index) ? day.highlights[index] : ""
+                                        let text = day.secondaryLines.indices.contains(index) ? day.secondaryLines[index] : ""
                                         openHighlight(captureID: captureID, highlightText: text)
                                     }
                                 )
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 24)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
                 }
             }
             .padding(.top, 12)
@@ -72,17 +82,87 @@ struct TimelineScreen: View {
             .sheet(item: $selectedAtom) { atom in
                 AtomDetailSheet(atom: atom, context: context, onSaved: loadDays)
             }
-            .onAppear(perform: loadDays)
+            .onAppear {
+                loadDays()
+                refreshSnapshotsIfNeeded(prioritizedKind: currentSnapshotKind)
+            }
             .onChange(of: selectedScope) { _, _ in
                 loadDays()
+                refreshSnapshotsIfNeeded(prioritizedKind: currentSnapshotKind)
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                refreshSnapshotsIfNeeded(prioritizedKind: currentSnapshotKind)
+            }
+        }
+    }
+
+    private var headerView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("时间线")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+
+            Text(scopeDescription)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var rangeSummaryView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(summaryTitle)
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            if isRefreshingSnapshots && currentSnapshot == nil {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("正在整理最近一次可回看的故事线…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                summaryTextBlock(currentSummaryDisplay)
+            }
+
+            if let snapshot = currentSnapshot {
+                HStack(spacing: 8) {
+                    snapshotPill("\(snapshot.activeDayCount) 天")
+                    snapshotPill("\(snapshot.totalRecordCount) 条材料")
+                }
+
+                if !snapshot.overviewSignals.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(snapshot.overviewSignals, id: \.self) { signal in
+                                signalPill(signal)
+                            }
+                        }
+                    }
+                }
+            } else if !days.isEmpty {
+                Text(fallbackStatsText)
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.black.opacity(0.04), lineWidth: 1)
         }
     }
 
     private var emptyStateView: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                .font(.system(size: 22, weight: .semibold))
+            Image(systemName: "sparkles.rectangle.stack")
+                .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.blue)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -90,7 +170,7 @@ struct TimelineScreen: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("写下一句话后，这里会按日期慢慢长出回看的脉络。")
+                Text(emptyStateBody)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -99,18 +179,14 @@ struct TimelineScreen: View {
             Button {
                 selectedTab = .record
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.subheadline.weight(.semibold))
-                    Text("去记录页记一句")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                Text("记一句")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent)
 
-            Text("不用一次写完整，零散记录也会被放回对应的日子里。")
+            Text("不用补完整，零散片段也会慢慢接成你的时间脉络。")
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
         }
@@ -126,16 +202,49 @@ struct TimelineScreen: View {
         .padding(.top, 8)
     }
 
+    private var scopeDescription: String {
+        switch selectedScope {
+        case .today:
+            return "今天先看节点，昨天的故事线会放在上面给你一个参考。"
+        case .week:
+            return "回看最近 7 天留下的片段，顶部故事线来自已经整理过的过去 7 天。"
+        case .month:
+            return "回看最近 30 天留下的片段，顶部故事线来自已经整理过的过去 30 天。"
+        case .custom:
+            return "这里按最近 30 天排开，但上面的故事线不会跟着实时跳动。"
+        }
+    }
+
+    private var currentSummaryDisplay: TimelineSnapshotSummaryDisplay {
+        if let snapshot = currentSnapshot {
+            return makeSummaryDisplay(from: snapshot.summaryText)
+        }
+        return TimelineSnapshotSummaryDisplay(lead: fallbackSummaryText, connection: nil)
+    }
+
     private var emptyStateTitle: String {
         switch selectedScope {
         case .today:
-            return "今天还没有记录"
+            return "今天还很安静"
         case .week:
-            return "本周还没有记录"
+            return "最近 7 天还没有留下片段"
         case .month:
-            return "本月还没有记录"
+            return "最近 30 天还没有留下片段"
         case .custom:
-            return "这段时间还没有记录"
+            return "最近 30 天还没有留下片段"
+        }
+    }
+
+    private var emptyStateBody: String {
+        switch selectedScope {
+        case .today:
+            return "今天先把片段放进来，昨天的故事线仍然会留在上面给你参考。"
+        case .week:
+            return "不用补满 7 天，从现在记一句就够了。"
+        case .month:
+            return "不用补满 30 天，先把当下留下来。"
+        case .custom:
+            return "这不是待办清单。记下一句话，这里就会开始长出时间感。"
         }
     }
 
@@ -156,28 +265,303 @@ struct TimelineScreen: View {
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
 
-        let captures = (try? context.fetch(request)) ?? []
+        let captures = ((try? context.fetch(request)) ?? [])
+            .filter(\.isEligibleForReviewTimeline)
         let grouped = Dictionary(grouping: captures) { capture in
             calendar.startOfDay(for: capture.createdAt)
         }
 
         days = grouped.map { date, items in
-            let sorted = items.sorted { $0.createdAt > $1.createdAt }
-            let pairs = sorted.compactMap { item -> (String, UUID)? in
-                let text = item.cleanText ?? item.rawText
-                return (text, item.id)
-            }
-            let highlights = pairs.map { $0.0 }.prefix(6)
-            let highlightIDs = pairs.map { $0.1 }.prefix(6)
-            return TimelineDay(
-                id: UUID(),
-                date: date,
-                highlights: Array(highlights),
-                highlightCaptureIDs: Array(highlightIDs),
-                hasNarrative: items.count >= 3
-            )
+            buildDay(date: date, items: items)
         }
         .sorted { $0.date > $1.date }
+    }
+
+    private var shouldShowRangeSummary: Bool {
+        currentSnapshot != nil || isRefreshingSnapshots || !days.isEmpty
+    }
+
+    private var currentSnapshotKind: TimelineReviewSnapshotKind {
+        switch selectedScope {
+        case .today:
+            return .yesterday
+        case .week:
+            return .last7Days
+        case .month, .custom:
+            return .last30Days
+        }
+    }
+
+    private var currentSnapshot: TimelineReviewSnapshotPayload? {
+        snapshots[currentSnapshotKind]
+    }
+
+    private var summaryTitle: String {
+        currentSnapshotKind.title
+    }
+
+    private var fallbackSummaryText: String {
+        let dayCount = days.count
+        let recordCount = days.reduce(0) { $0 + $1.recordCount }
+        if dayCount == 0 || recordCount == 0 {
+            return "这段时间还没有足够的片段形成一条稳定故事线。"
+        }
+        switch currentSnapshotKind {
+        case .yesterday:
+            return "昨天之后，这里会留下一条更完整的回看线索。今天先把片段放进来。"
+        case .last7Days:
+            return "过去 7 天的故事线还没整理出来，先按日期看看最近留下了什么。"
+        case .last30Days:
+            return "过去 30 天的故事线还没整理出来，先把这些日期放在这里。"
+        }
+    }
+
+    private var fallbackStatsText: String {
+        let dayCount = days.count
+        let recordCount = days.reduce(0) { $0 + $1.recordCount }
+        guard dayCount > 0, recordCount > 0 else { return "" }
+        return "当前这一栏里有 \(dayCount) 天、\(recordCount) 条片段。"
+    }
+
+    private func snapshotPill(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(Capsule())
+    }
+
+    private func signalPill(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private func summaryTextBlock(_ display: TimelineSnapshotSummaryDisplay) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(display.lead)
+                .font(.subheadline)
+                .lineSpacing(3)
+                .foregroundStyle(.primary)
+                .lineLimit(4)
+
+            if let connection = display.connection {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("可能的联系")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+
+                    Text(connection)
+                        .font(.footnote)
+                        .lineSpacing(3)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+            }
+        }
+    }
+
+    private func makeSummaryDisplay(from rawText: String) -> TimelineSnapshotSummaryDisplay {
+        let sections = labeledSummarySections(from: rawText)
+        let leadSource = sections["事实"]
+            ?? sections["总结"]
+            ?? sections["主要主题"]
+            ?? firstMeaningfulParagraph(from: rawText)
+            ?? fallbackSummaryText
+        let connectionSource = sections["联系"] ?? sections["可能的联系"]
+        let lead = compactSummaryText(leadSource, maxLength: 118)
+        let connection = connectionSource
+            .map { compactSummaryText($0, maxLength: 96) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+
+        return TimelineSnapshotSummaryDisplay(lead: lead, connection: connection)
+    }
+
+    private func labeledSummarySections(from rawText: String) -> [String: String] {
+        let labels = ["事实", "联系", "可能的联系", "可继续问", "总结", "主要主题"]
+        var normalized = rawText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "**", with: "")
+
+        for label in labels {
+            normalized = normalized
+                .replacingOccurrences(of: "\(label)：", with: "\n\(label)：")
+                .replacingOccurrences(of: "\(label):", with: "\n\(label):")
+        }
+
+        var sections: [String: String] = [:]
+        var currentLabel: String?
+        var buffer = ""
+
+        func flush() {
+            guard let currentLabel else { return }
+            let text = compactSummaryText(buffer, maxLength: 220)
+            if !text.isEmpty {
+                sections[currentLabel] = text
+            }
+        }
+
+        for rawLine in normalized.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+
+            if let match = summaryLabelMatch(line, labels: labels) {
+                flush()
+                currentLabel = match.label
+                buffer = match.remainder
+            } else if currentLabel != nil {
+                buffer += buffer.isEmpty ? line : " \(line)"
+            }
+        }
+
+        flush()
+        return sections
+    }
+
+    private func summaryLabelMatch(_ line: String, labels: [String]) -> (label: String, remainder: String)? {
+        for label in labels {
+            for separator in ["：", ":"] {
+                let prefix = "\(label)\(separator)"
+                guard line.hasPrefix(prefix) else { continue }
+                let remainder = String(line.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return (label, remainder)
+            }
+        }
+        return nil
+    }
+
+    private func firstMeaningfulParagraph(from rawText: String) -> String? {
+        rawText
+            .replacingOccurrences(of: "**", with: "")
+            .components(separatedBy: CharacterSet.newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { paragraph in
+                !paragraph.isEmpty
+                    && !paragraph.hasPrefix("可继续问：")
+                    && !paragraph.hasPrefix("可继续问:")
+            }
+    }
+
+    private func compactSummaryText(_ text: String, maxLength: Int) -> String {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count > maxLength else { return cleaned }
+
+        let endIndex = cleaned.index(cleaned.startIndex, offsetBy: maxLength)
+        return cleaned[..<endIndex].trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    private func refreshSnapshotsIfNeeded(prioritizedKind: TimelineReviewSnapshotKind) {
+        let service = TimelineReviewSnapshotService(context: context)
+        for kind in TimelineReviewSnapshotKind.allCases {
+            if let snapshot = service.loadSnapshot(kind: kind), service.isSnapshotCurrent(snapshot) {
+                snapshots[kind] = snapshot
+            } else {
+                snapshots[kind] = nil
+            }
+        }
+
+        guard !isRefreshingSnapshots else { return }
+        isRefreshingSnapshots = true
+
+        Task {
+            let orderedKinds = [prioritizedKind] + TimelineReviewSnapshotKind.allCases.filter { $0 != prioritizedKind }
+            for kind in orderedKinds {
+                if let snapshot = await service.refreshIfNeeded(kind: kind, aiService: aiService) {
+                    await MainActor.run {
+                        snapshots[kind] = snapshot
+                    }
+                }
+            }
+            await MainActor.run {
+                isRefreshingSnapshots = false
+            }
+        }
+    }
+
+    private func buildDay(date: Date, items: [CaptureEntity]) -> TimelineDay {
+        let sorted = items.sorted { $0.createdAt > $1.createdAt }
+        let texts = sorted.map(displayText(for:))
+        let dedupedTexts = uniqueTexts(from: texts)
+        let dayParts = Array(NSOrderedSet(array: sorted.compactMap {
+            DayPart(rawValue: $0.dayPart ?? "")
+        })) as? [DayPart] ?? []
+        let secondaryLines = Array(dedupedTexts.prefix(3))
+        let primaryLine = primaryLine(for: dedupedTexts, count: items.count)
+        let secondaryCaptureIDs = Array(sorted.prefix(secondaryLines.count).map(\.id))
+
+        return TimelineDay(
+            id: UUID(),
+            date: date,
+            recordCount: items.count,
+            dayParts: dayParts,
+            primaryLine: primaryLine,
+            secondaryLines: secondaryLines,
+            highlightCaptureIDs: secondaryCaptureIDs,
+            hasGeneratedNarrative: false
+        )
+    }
+
+    private func displayText(for capture: CaptureEntity) -> String {
+        let text = (capture.cleanText ?? capture.rawText).trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedSnippet(from: text)
+    }
+
+    private func uniqueTexts(from texts: [String]) -> [String] {
+        var seen: Set<String> = []
+        var ordered: [String] = []
+
+        for text in texts where !text.isEmpty {
+            let key = text.lowercased()
+            if seen.insert(key).inserted {
+                ordered.append(text)
+            }
+        }
+
+        return ordered
+    }
+
+    private func normalizedSnippet(from text: String, maxLength: Int = 56) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else {
+            return "留下一小段片段。"
+        }
+
+        guard normalized.count > maxLength else {
+            return normalized
+        }
+
+        let cutIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+        return normalized[..<cutIndex].trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    private func primaryLine(for texts: [String], count: Int) -> String {
+        guard let first = texts.first else {
+            return "这一天还没有能展示的片段。"
+        }
+
+        if count == 1 {
+            return first
+        }
+
+        if let second = texts.dropFirst().first {
+            return "这一天留下了 \(count) 条片段，先是\(first)，后来也提到\(second)"
+        }
+
+        return "这一天留下了 \(count) 条片段，主要围绕\(first)"
     }
 
     private func dateInterval(for scope: TimelineScope) -> DateInterval? {
@@ -189,9 +573,13 @@ struct TimelineScreen: View {
             let end = calendar.date(byAdding: .day, value: 1, to: start) ?? now
             return DateInterval(start: start, end: end)
         case .week:
-            return calendar.dateInterval(of: .weekOfYear, for: now)
+            let end = now
+            let start = calendar.date(byAdding: .day, value: -7, to: end) ?? end
+            return DateInterval(start: start, end: end)
         case .month:
-            return calendar.dateInterval(of: .month, for: now)
+            let end = now
+            let start = calendar.date(byAdding: .day, value: -30, to: end) ?? end
+            return DateInterval(start: start, end: end)
         case .custom:
             let end = now
             let start = calendar.date(byAdding: .day, value: -30, to: end) ?? end
@@ -228,10 +616,10 @@ struct TimelineScreen: View {
             ackTitle: entity.ackTitle,
             ackDetail: entity.ackDetail,
             dayPart: DayPart(rawValue: entity.dayPart ?? "") ?? .morning,
-            mode: CaptureInputMode(rawValue: entity.mode ?? "") ?? .log,
+            mode: entity.resolvedInputMode,
             assistRecord: nil,
             atomsCount: Int(entity.atomsCount),
-            processingState: CaptureProcessingState(rawValue: entity.processingState ?? "") ?? .cleanReady,
+            processingState: entity.resolvedReviewProcessingState,
             inputType: CaptureInputType(rawValue: entity.inputType ?? "") ?? .text,
             audioPath: entity.audioPath,
             transcriptText: entity.transcriptText,
@@ -243,78 +631,91 @@ struct TimelineScreen: View {
     }
 }
 
+private struct TimelineSnapshotSummaryDisplay {
+    let lead: String
+    let connection: String?
+}
+
 private struct TimelineDayCard: View {
     let day: TimelineDay
     let onOpenDay: () -> Void
     let onHighlightTap: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button(action: onOpenDay) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(formattedDate(day.date))
-                                .font(.headline)
-                                .foregroundStyle(.primary)
+        Button(action: onOpenDay) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(formattedDate(day.date))
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.primary)
 
-                            Text("\(day.highlights.count) 条记录 · 可回看")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 4)
+                        Text(metaLine)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
 
-                    Text(day.hasNarrative ? "查看今日叙事" : "整理成今日叙事")
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.blue)
-                        .padding(.vertical, 7)
-                        .padding(.horizontal, 10)
-                        .background(Color.blue.opacity(0.10))
-                        .clipShape(Capsule())
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 4)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(day.highlights.enumerated()), id: \.offset) { index, highlight in
-                    Button {
-                        onHighlightTap(index)
-                    } label: {
-                        HStack(alignment: .top, spacing: 8) {
-                            Circle()
-                                .fill(Color(.systemGray3))
-                                .frame(width: 5, height: 5)
-                                .padding(.top, 7)
-                            Text(highlight)
-                                .font(.subheadline)
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
-                            Spacer(minLength: 0)
+                Text(day.primaryLine)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+
+                if !day.secondaryLines.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(day.secondaryLines.enumerated()), id: \.offset) { index, highlight in
+                            Button {
+                                onHighlightTap(index)
+                            } label: {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Circle()
+                                        .fill(Color(.systemGray3))
+                                        .frame(width: 5, height: 5)
+                                        .padding(.top, 7)
+                                    Text(highlight)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.leading)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
                 }
+
+                Text("回看这一天")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.blue)
             }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.black.opacity(0.04), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .contentShape(Rectangle())
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.black.opacity(0.04), lineWidth: 1)
+        .buttonStyle(.plain)
+    }
+
+    private var metaLine: String {
+        let recordText = "\(day.recordCount) 条片段"
+        guard !day.dayParts.isEmpty else {
+            return recordText
         }
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+        let partText = day.dayParts.map(\.title).joined(separator: " / ")
+        return "\(recordText) · \(partText)"
     }
 
     private func formattedDate(_ date: Date) -> String {

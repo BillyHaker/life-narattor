@@ -3,9 +3,12 @@ import Foundation
 struct TimelineDay: Identifiable, Hashable {
     let id: UUID
     let date: Date
-    let highlights: [String]
+    let recordCount: Int
+    let dayParts: [DayPart]
+    let primaryLine: String
+    let secondaryLines: [String]
     let highlightCaptureIDs: [UUID]
-    let hasNarrative: Bool
+    let hasGeneratedNarrative: Bool
 }
 
 enum TimelineScope: String, CaseIterable, Identifiable {
@@ -16,16 +19,20 @@ enum TimelineScope: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static var timelineTabs: [TimelineScope] {
+        [.today, .week, .month]
+    }
+
     var title: String {
         switch self {
         case .today:
             return "今天"
         case .week:
-            return "本周"
+            return "7天回顾"
         case .month:
-            return "本月"
+            return "30天回顾"
         case .custom:
-            return "自定义"
+            return "近30天"
         }
     }
 }

@@ -94,7 +94,10 @@ struct MemoryIndexStore {
         request.predicate = NSPredicate(format: "createdAt >= %@ AND createdAt <= %@", range.start as CVarArg, range.end as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         let captures = (try? context.fetch(request)) ?? []
-        return captures.map(makeSnapshot)
+        _ = ReviewMaterialRepairService(context: context).backfillLegacyAssistArchivePayloads(for: captures)
+        return captures
+            .filter(\.isEligibleForReviewTimeline)
+            .map(makeSnapshot)
     }
 
     private func makeSnapshot(for entity: CaptureEntity) -> IndexedCaptureSnapshot {
@@ -253,8 +256,8 @@ struct MemoryIndexStore {
 
         let dayPart = DayPart(rawValue: entity.dayPart ?? "") ?? dayPart(for: createdAt)
         let inputType = CaptureInputType(rawValue: entity.inputType ?? "") ?? .text
-        let mode = CaptureInputMode(rawValue: entity.mode ?? "") ?? .log
-        let processingState = CaptureProcessingState(rawValue: entity.processingState ?? "") ?? .cleanReady
+        let mode = entity.resolvedInputMode
+        let processingState = entity.resolvedReviewProcessingState
 
         return [
             SystemSignal(kind: .date, value: dateValue, displayName: "日期：\(dateValue)"),

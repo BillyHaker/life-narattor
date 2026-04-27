@@ -25,11 +25,13 @@ struct DayDetailScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 18) {
                 headerSection
                 narrativeSection
-                commentSection
                 recordsSection
+                if shouldShowCommentSection {
+                    commentSection
+                }
                 sourcesSection
             }
             .padding(.horizontal, 16)
@@ -55,24 +57,41 @@ struct DayDetailScreen: View {
     }
 
     private var headerSection: some View {
-        Text(formattedHeaderDate(day.date))
-            .font(.title2.weight(.semibold))
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("这一天")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text(dayMetaLine)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(headerSummaryText)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var narrativeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("今日叙事")
+            Text("当天脉络")
                 .font(.headline)
+
+            Text("先把这一天串起来，后面再去看具体片段。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
             Text(narrativeText)
                 .font(.body)
                 .foregroundStyle(sourceMappings.isEmpty ? .secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
-                Button("编辑叙事") {}
-                    .buttonStyle(.bordered)
-                    .disabled(true)
                 Button("重新整理") {
                     refreshDayNarrative(forceAIRefresh: true)
                 }
@@ -80,6 +99,10 @@ struct DayDetailScreen: View {
                 .disabled(capturesByPart.isEmpty)
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var commentSection: some View {
@@ -123,12 +146,37 @@ struct DayDetailScreen: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private var shouldShowCommentSection: Bool {
+        if isLoadingAIAnalysis {
+            return true
+        }
+
+        if !aiAnalysisText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let message = aiAnalysisErrorMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !message.isEmpty,
+           narrativeMaterial != nil {
+            return true
+        }
+
+        return narrativeMaterial?.representativeUnits.isEmpty == false
     }
 
     private var recordsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("今日记录")
+            Text("原始片段")
                 .font(.headline)
+            Text("按时间顺着看，想展开哪一条就点进去。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             if capturesByPart.isEmpty {
                 Text("今天还没有记录")
                     .font(.subheadline)
@@ -142,26 +190,49 @@ struct DayDetailScreen: View {
                                 .foregroundStyle(.secondary)
 
                             ForEach(rows) { row in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Circle()
-                                        .fill(Color(.systemGray3))
-                                        .frame(width: 6, height: 6)
-                                        .padding(.top, 6)
-                                    Text(row.text)
-                                        .font(.body)
-                                        .foregroundStyle(.primary)
+                                Button {
+                                    loadCapture(id: row.id)
+                                } label: {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(formattedTime(row.createdAt))
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+
+                                            Text(row.text)
+                                                .font(.body)
+                                                .foregroundStyle(.primary)
+                                                .multilineTextAlignment(.leading)
+                                        }
+
+                                        Spacer(minLength: 0)
+
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                            .padding(.top, 2)
+                                    }
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
                 }
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var sourcesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            DisclosureGroup("引用来源", isExpanded: $isSourcesExpanded) {
+            DisclosureGroup("叙事引用来源", isExpanded: $isSourcesExpanded) {
                 if sourceMappings.isEmpty {
                     Text("暂无引用来源")
                         .font(.footnote)
@@ -191,6 +262,10 @@ struct DayDetailScreen: View {
             }
             .font(.headline)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func formattedHeaderDate(_ date: Date) -> String {
@@ -205,6 +280,22 @@ struct DayDetailScreen: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
+    }
+
+    private var dayMetaLine: String {
+        let recordText = "\(day.recordCount) 条片段"
+        if day.dayParts.isEmpty {
+            return recordText
+        }
+        let partText = day.dayParts.map { $0.title }.joined(separator: " / ")
+        return "\(recordText) · \(partText)"
+    }
+
+    private var headerSummaryText: String {
+        if !day.primaryLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return day.primaryLine
+        }
+        return "这一天先被放在这里，等你回看的时候再慢慢展开。"
     }
 
     private var allCaptures: [CaptureRow] {
@@ -494,13 +585,14 @@ struct DayDetailScreen: View {
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
 
-        let captures = (try? context.fetch(request)) ?? []
+        let captures = ((try? context.fetch(request)) ?? [])
+            .filter(\.isEligibleForReviewTimeline)
         var grouped: [DayPart: [CaptureRow]] = [:]
 
         for capture in captures {
             let part = DayPart(rawValue: capture.dayPart ?? "") ?? .morning
             let text = capture.cleanText ?? capture.rawText
-            let processingState = CaptureProcessingState(rawValue: capture.processingState ?? "") ?? .cleanReady
+            let processingState = capture.resolvedReviewProcessingState
             grouped[part, default: []].append(
                 CaptureRow(
                     id: capture.id,
@@ -535,7 +627,7 @@ struct DayDetailScreen: View {
         guard isCommentEnabled else { return }
         guard let material = narrativeMaterial, !material.representativeUnits.isEmpty else {
             aiAnalysisText = ""
-            aiAnalysisErrorMessage = aiResponseUnavailableMessage
+            aiAnalysisErrorMessage = nil
             isLoadingAIAnalysis = false
             return
         }
@@ -570,28 +662,6 @@ struct DayDetailScreen: View {
         }
     }
 
-    private var aiResponseUnavailableMessage: String {
-        let captures = allCaptures
-        guard !captures.isEmpty else {
-            return "今天还没有记录。"
-        }
-
-        let states = captures.map(\.processingState)
-        if states.contains(.splitting) || states.contains(.pendingSplit) || states.contains(.pendingClean) || states.contains(.cleanReady) {
-            return "这一天的记录已经保存，还在整理成可分析的结构。完成拆分后会生成 AI 回应。"
-        }
-
-        if states.allSatisfy({ $0 == .splitFailed }) {
-            return "这一天的记录整理失败了，重新拆分后才能生成 AI 回应。"
-        }
-
-        if states.contains(.splitFailed) {
-            return "这一天有部分记录整理失败，目前还没有形成足够稳定的 AI 回应材料。"
-        }
-
-        return "这一天有记录，但还没有形成可用于 AI 回应的结构化片段。"
-    }
-
     private func loadCapture(id: UUID) {
         let request = NSFetchRequest<CaptureEntity>(entityName: "CaptureEntity")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -605,10 +675,10 @@ struct DayDetailScreen: View {
             ackTitle: entity.ackTitle,
             ackDetail: entity.ackDetail,
             dayPart: DayPart(rawValue: entity.dayPart ?? "") ?? .morning,
-            mode: CaptureInputMode(rawValue: entity.mode ?? "") ?? .log,
+            mode: entity.resolvedInputMode,
             assistRecord: nil,
             atomsCount: Int(entity.atomsCount),
-            processingState: CaptureProcessingState(rawValue: entity.processingState ?? "") ?? .cleanReady,
+            processingState: entity.resolvedReviewProcessingState,
             inputType: CaptureInputType(rawValue: entity.inputType ?? "") ?? .text,
             audioPath: entity.audioPath,
             transcriptText: entity.transcriptText,
