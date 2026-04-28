@@ -173,6 +173,10 @@ struct RecordFeedScreen: View {
             .onAppear {
                 scrollToLatestIfNeeded(with: proxy)
             }
+            .onChange(of: selectedScope) { _, _ in
+                shouldAutoScrollToLatest = true
+                scrollToLatestIfNeeded(with: proxy)
+            }
             .onChange(of: currentCaptureIDs) { _, _ in
                 scrollToLatestIfNeeded(with: proxy)
             }
@@ -476,8 +480,10 @@ struct RecordFeedScreen: View {
         guard shouldAutoScrollToLatest else { return }
         guard let latestID = latestCaptureID else { return }
         DispatchQueue.main.async {
-            proxy.scrollTo(latestID, anchor: .bottom)
-            shouldAutoScrollToLatest = false
+            DispatchQueue.main.async {
+                proxy.scrollTo(latestID, anchor: .bottom)
+                shouldAutoScrollToLatest = false
+            }
         }
     }
 
