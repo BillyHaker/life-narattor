@@ -27,7 +27,9 @@ struct TimelineScreen: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                headerView
+
                 Picker("范围", selection: $selectedScope) {
                     ForEach(TimelineScope.timelineTabs) { scope in
                         Text(scope.title).tag(scope)
@@ -93,6 +95,13 @@ struct TimelineScreen: View {
                 refreshSnapshotsIfNeeded(prioritizedKind: currentSnapshotKind)
             }
         }
+    }
+
+    private var headerView: some View {
+        Text("今天 · \(formattedTodayDate(Date()))")
+            .font(.title2.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
     }
 
     private var rangeSummaryView: some View {
@@ -557,6 +566,12 @@ struct TimelineScreen: View {
             let start = calendar.date(byAdding: .day, value: -30, to: end) ?? end
             return DateInterval(start: start, end: end)
         }
+    }
+
+    private func formattedTodayDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd"
+        return formatter.string(from: date)
     }
 
     private func openHighlight(captureID: UUID, highlightText: String) {
