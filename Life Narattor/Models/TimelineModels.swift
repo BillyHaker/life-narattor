@@ -26,7 +26,7 @@ enum TimelineScope: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .today:
-            return "今天"
+            return "昨日"
         case .week:
             return "7天回顾"
         case .month:
