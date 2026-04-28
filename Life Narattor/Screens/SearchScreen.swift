@@ -1302,46 +1302,80 @@ private struct ReviewClueSuggestion: Identifiable {
     let atomCount: Int
     let createdAt: Date
 
+    var display: ReviewClueDisplay {
+        ReviewClueDisplay.make(name: name, type: type, atomCount: atomCount)
+    }
+
     var typeTitle: String {
         type.title
     }
+}
 
-    var iconName: String {
-        switch type {
-        case .project:
-            return "folder"
-        case .habit:
-            return "repeat"
-        case .theme:
-            return "sparkles"
-        case .person:
-            return "person"
-        case .goal:
-            return "target"
-        case .context:
-            return "mappin.and.ellipse"
-        }
+private struct ReviewClueDisplay {
+    let iconName: String
+    let tint: Color
+    let subtitle: String
+
+    static func make(name: String, type: TagType, atomCount: Int) -> ReviewClueDisplay {
+        let matched = keywordDisplay(name: name)
+        let fallback = fallbackDisplay(type: type)
+        let label = matched?.label ?? fallback.label
+        return ReviewClueDisplay(
+            iconName: matched?.iconName ?? fallback.iconName,
+            tint: matched?.tint ?? fallback.tint,
+            subtitle: "\(label) · \(atomCount) 条片段可回看"
+        )
     }
 
-    var tint: Color {
-        switch type {
-        case .project:
-            return .blue
-        case .habit:
-            return .green
-        case .theme:
-            return .purple
-        case .person:
-            return .orange
-        case .goal:
-            return .indigo
-        case .context:
-            return .teal
+    private static func keywordDisplay(name: String) -> (iconName: String, tint: Color, label: String)? {
+        if name.matchesAny(["工作", "任务", "安排", "会议", "通勤", "公司", "上班", "项目", "截止", "计划"]) {
+            return ("calendar", .blue, "和计划、任务节奏有关")
         }
+        if name.matchesAny(["早起", "晨间", "早晨", "上午", "起床", "启动", "开始"]) {
+            return ("sun.max", .orange, "和一天开始后的状态有关")
+        }
+        if name.matchesAny(["睡眠", "睡觉", "熬夜", "失眠", "午睡", "休息"]) {
+            return ("bed.double", .indigo, "和休息、恢复状态有关")
+        }
+        if name.matchesAny(["情绪", "心情", "焦虑", "紧张", "烦", "烦躁", "压力", "低落", "开心", "难受"]) {
+            return ("heart.text.square", .pink, "和情绪起伏有关")
+        }
+        if name.matchesAny(["运动", "健身", "跑步", "训练", "肌酸", "蛋白", "补剂", "饮食", "胃口", "吃饭", "咖啡"]) {
+            return ("figure.run", .green, "和身体状态、饮食或运动有关")
+        }
+        if name.matchesAny(["游戏", "段位", "云顶", "娱乐", "放松", "围棋", "象棋"]) {
+            return ("gamecontroller", .purple, "和娱乐、投入感有关")
+        }
+        if name.matchesAny(["学习", "阅读", "课程", "英语", "写作", "思考", "复盘", "知识"]) {
+            return ("book.closed", .teal, "和学习、输入输出有关")
+        }
+        if name.matchesAny(["朋友", "家人", "同事", "老板", "客户", "聊天", "关系", "沟通"]) {
+            return ("person.2", .orange, "和人际互动有关")
+        }
+        return nil
     }
 
-    var subtitle: String {
-        "\(typeTitle)线索 · \(atomCount) 条片段可回看"
+    private static func fallbackDisplay(type: TagType) -> (iconName: String, tint: Color, label: String) {
+        switch type {
+        case .project:
+            return ("folder", .blue, "项目线索")
+        case .habit:
+            return ("repeat", .green, "习惯线索")
+        case .theme:
+            return ("sparkles", .purple, "主题线索")
+        case .person:
+            return ("person", .orange, "人物线索")
+        case .goal:
+            return ("target", .indigo, "目标线索")
+        case .context:
+            return ("mappin.and.ellipse", .teal, "场景线索")
+        }
+    }
+}
+
+private extension String {
+    func matchesAny(_ keywords: [String]) -> Bool {
+        keywords.contains { localizedCaseInsensitiveContains($0) }
     }
 }
 
@@ -1349,14 +1383,15 @@ private struct ReviewClueSuggestionCard: View {
     let clue: ReviewClueSuggestion
 
     var body: some View {
+        let display = clue.display
         HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(clue.tint.opacity(0.10))
+                    .fill(display.tint.opacity(0.10))
                     .frame(width: 38, height: 38)
-                Image(systemName: clue.iconName)
+                Image(systemName: display.iconName)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(clue.tint)
+                    .foregroundStyle(display.tint)
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1365,7 +1400,7 @@ private struct ReviewClueSuggestionCard: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text(clue.subtitle)
+                Text(display.subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1385,7 +1420,7 @@ private struct ReviewClueSuggestionCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(clue.tint.opacity(0.10), lineWidth: 1)
+                .stroke(display.tint.opacity(0.10), lineWidth: 1)
         )
     }
 }
