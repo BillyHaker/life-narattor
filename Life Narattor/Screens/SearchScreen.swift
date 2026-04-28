@@ -28,6 +28,7 @@ struct SearchScreen: View {
     @State private var showAllFollowups = false
     @State private var suppressQueryReset = false
     @State private var expandedReviewSectionIDs: Set<String> = []
+    @State private var clueSuggestions: [ReviewClueSuggestion] = []
 
     init(initialQuery: String = "", initialFilter: SearchFilterType? = nil) {
         _query = State(initialValue: initialQuery)
@@ -83,6 +84,7 @@ struct SearchScreen: View {
             }
         }
         .onAppear {
+            loadClueSuggestions()
             if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isUsingRetrievalPlan {
                 performRetrievalSearch()
             }
@@ -91,9 +93,9 @@ struct SearchScreen: View {
 
     private var searchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("AI 回顾")
+            Text("想回看什么？")
                 .font(.headline)
-            Text("问一句想回看的事，我会先找事实，再整理它们之间可能的联系。")
+            Text("可以直接问，也可以从最近沉淀的线索开始。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
@@ -271,11 +273,37 @@ struct SearchScreen: View {
             } else if !results.isEmpty {
                 relatedRecordsCard
             } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reviewSectionCard(title: "最近可以这样回看", accent: "轻点即问") {
+                reviewSectionCard(title: "可以这样问", accent: "轻点即问") {
                     VStack(alignment: .leading, spacing: 8) {
                         starterPrompt("最近有什么事情反复出现")
                         starterPrompt("我上次也有类似状态是什么时候")
                         starterPrompt("哪条线索最近最值得继续看")
+                    }
+                }
+
+                if !clueSuggestions.isEmpty {
+                    clueInspirationSection
+                }
+            }
+        }
+    }
+
+    private var clueInspirationSection: some View {
+        reviewSectionCard(title: "最近线索", accent: "点一下回看") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("从已经反复出现的标签开始，不用先组织问题。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                LazyVGrid(columns: [GridItem(.flexible())], spacing: 10) {
+                    ForEach(clueSuggestions) { clue in
+                        Button {
+                            submitCluePrompt(clue)
+                        } label: {
+                            ReviewClueSuggestionCard(clue: clue)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -1032,6 +1060,45 @@ struct SearchScreen: View {
         return ((try? context.fetch(request)) ?? []).map(\.name)
     }
 
+    private func loadClueSuggestions() {
+        let request = NSFetchRequest<TagEntity>(entityName: "TagEntity")
+        request.predicate = NSPredicate(format: "isUserVisible == YES")
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+
+        let tags = (try? context.fetch(request)) ?? []
+        let suggestions = tags.compactMap { tag -> ReviewClueSuggestion? in
+            guard let type = TagType(rawValue: tag.type) else { return nil }
+            let atomCount = fetchAtomCount(tagID: tag.id)
+            guard atomCount > 0 else { return nil }
+            return ReviewClueSuggestion(
+                id: tag.id,
+                name: tag.name,
+                type: type,
+                atomCount: atomCount,
+                createdAt: tag.createdAt
+            )
+        }
+
+        clueSuggestions = suggestions
+            .sorted { lhs, rhs in
+                if lhs.atomCount != rhs.atomCount {
+                    return lhs.atomCount > rhs.atomCount
+                }
+                return lhs.createdAt > rhs.createdAt
+            }
+            .prefix(4)
+            .map { $0 }
+    }
+
+    private func fetchAtomCount(tagID: UUID) -> Int {
+        let request = NSFetchRequest<AtomTagEntity>(entityName: "AtomTagEntity")
+        request.predicate = NSPredicate(format: "tagID == %@", tagID as CVarArg)
+        return (try? context.count(for: request)) ?? 0
+    }
+
     private func loadVisibleTagLibrary() -> TagLibrary {
         TagLibrary(
             project: fetchVisibleTagNames(type: .project),
@@ -1216,7 +1283,114 @@ struct SearchScreen: View {
     private func submitStarterPrompt(_ text: String) {
         suppressQueryReset = true
         query = text
-        performRetrievalSearch()
+        DispatchQueue.main.async {
+            performRetrievalSearch()
+        }
+    }
+
+    private func submitCluePrompt(_ clue: ReviewClueSuggestion) {
+        selectedFilter = SearchFilterType.from(tagType: clue.type)
+        selectedDateRange = .last90Days
+        submitStarterPrompt("围绕「\(clue.name)」这条线索，最近有什么值得注意的变化？")
+    }
+}
+
+private struct ReviewClueSuggestion: Identifiable {
+    let id: UUID
+    let name: String
+    let type: TagType
+    let atomCount: Int
+    let createdAt: Date
+
+    var typeTitle: String {
+        type.title
+    }
+
+    var iconName: String {
+        switch type {
+        case .project:
+            return "folder"
+        case .habit:
+            return "repeat"
+        case .theme:
+            return "sparkles"
+        case .person:
+            return "person"
+        case .goal:
+            return "target"
+        case .context:
+            return "mappin.and.ellipse"
+        }
+    }
+
+    var tint: Color {
+        switch type {
+        case .project:
+            return .blue
+        case .habit:
+            return .green
+        case .theme:
+            return .purple
+        case .person:
+            return .orange
+        case .goal:
+            return .indigo
+        case .context:
+            return .teal
+        }
+    }
+}
+
+private struct ReviewClueSuggestionCard: View {
+    let clue: ReviewClueSuggestion
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(clue.tint.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                Image(systemName: clue.iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(clue.tint)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(clue.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text("\(clue.typeTitle) · \(clue.atomCount) 条材料")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "arrow.up.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(clue.tint.opacity(0.8))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            clue.tint.opacity(0.08),
+                            Color(.systemGray6)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(clue.tint.opacity(0.12), lineWidth: 1)
+        )
     }
 }
 

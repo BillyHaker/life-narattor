@@ -4,7 +4,6 @@ import SwiftUI
 enum RootTab: Hashable {
     case record
     case timeline
-    case projects
     case review
 #if DEBUG
     case dev
@@ -38,12 +37,6 @@ struct ContentView: View {
                             Label("时间线", systemImage: "clock")
                         }
                         .tag(RootTab.timeline)
-
-                    ProjectsListScreen()
-                        .tabItem {
-                            Label("线索", systemImage: "folder")
-                        }
-                        .tag(RootTab.projects)
 
                     NavigationStack {
                         SearchScreen()
