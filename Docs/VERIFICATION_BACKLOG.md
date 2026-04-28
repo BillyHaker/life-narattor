@@ -248,3 +248,11 @@ pending-count: 16
 - added: 2026-04-28
 - status: pending
 - notes: 验证路径为安装最终构建 -> 打开 App -> 检查底部 Tab；预期只出现面向用户的主入口，不出现锤子/Dev。若使用 Debug 验证，需先清空 App 数据或确认 `feature.isDeveloperMenuVisible` 未被手动设为 true。
+
+### VRF-024
+- feature: AI 回顾首页线索优先入口
+- description: AI 回顾首页应优先展示真实记录沉淀出的 `从这些线索开始` 区块，示例问题降级为辅助入口；点击线索卡或示例问题都应自动开始回顾，而不是只填入输入框。
+- type: human-visual
+- added: 2026-04-28
+- status: pending
+- notes: 验证路径为 AI 回顾 -> 空输入首页。分别检查无记录/无线索、有 1-2 条线索、长线索名称、小屏首屏显示；点击线索卡应进入加载/结果状态，点击示例问题也应立即开始回顾。

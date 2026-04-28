@@ -93,16 +93,16 @@ struct SearchScreen: View {
 
     private var searchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("想回看什么？")
-                .font(.headline)
-            Text("可以直接问，也可以从最近沉淀的线索开始。")
+            Text("想从最近的记录里看见什么？")
+                .font(.headline.weight(.semibold))
+            Text("可以直接问，也可以从系统发现的线索开始。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.secondary)
-                TextField("例如：我最近反复卡住的地方是什么？", text: $query)
+                TextField("例如：我最近为什么总是卡住？", text: $query)
                     .submitLabel(.search)
                     .textFieldStyle(.plain)
                     .onSubmit {
@@ -117,7 +117,7 @@ struct SearchScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button("回看") {
+                Button("开始回顾") {
                     performRetrievalSearch()
                 }
                 .font(.subheadline.weight(.semibold))
@@ -273,25 +273,25 @@ struct SearchScreen: View {
             } else if !results.isEmpty {
                 relatedRecordsCard
             } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reviewSectionCard(title: "可以这样问", accent: "轻点即问") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        starterPrompt("最近有什么事情反复出现")
-                        starterPrompt("我上次也有类似状态是什么时候")
-                        starterPrompt("哪条线索最近最值得继续看")
-                    }
-                }
-
                 if !clueSuggestions.isEmpty {
                     clueInspirationSection
+                }
+
+                reviewSectionCard(title: "试着这样问", accent: "示例") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        starterPrompt("最近有什么事情反复出现")
+                        starterPrompt("我最近为什么总是卡住")
+                        starterPrompt("哪条线索最值得继续看")
+                    }
                 }
             }
         }
     }
 
     private var clueInspirationSection: some View {
-        reviewSectionCard(title: "最近线索", accent: "点一下回看") {
+        reviewSectionCard(title: "从这些线索开始", accent: "来自记录") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("从已经反复出现的标签开始，不用先组织问题。")
+                Text("这些是近期记录里沉淀出的主题。点开后，会直接围绕这条线索开始回顾。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1339,57 +1339,53 @@ private struct ReviewClueSuggestion: Identifiable {
             return .teal
         }
     }
+
+    var subtitle: String {
+        "\(typeTitle)线索 · \(atomCount) 条片段可回看"
+    }
 }
 
 private struct ReviewClueSuggestionCard: View {
     let clue: ReviewClueSuggestion
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(clue.tint.opacity(0.12))
-                    .frame(width: 36, height: 36)
+                    .fill(clue.tint.opacity(0.10))
+                    .frame(width: 38, height: 38)
                 Image(systemName: clue.iconName)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(clue.tint)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(clue.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
-                Text("\(clue.typeTitle) · \(clue.atomCount) 条材料")
+                Text(clue.subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 8)
 
-            Image(systemName: "arrow.up.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(clue.tint.opacity(0.8))
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(12)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            clue.tint.opacity(0.08),
-                            Color(.systemGray6)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(Color(.secondarySystemGroupedBackground))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(clue.tint.opacity(0.12), lineWidth: 1)
+                .stroke(clue.tint.opacity(0.10), lineWidth: 1)
         )
     }
 }
