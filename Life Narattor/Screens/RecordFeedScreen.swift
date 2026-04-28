@@ -109,7 +109,7 @@ struct RecordFeedScreen: View {
     }
 
     private var contentView: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             headerView
             if selectedSurface == .record {
                 filterBar
@@ -267,9 +267,6 @@ struct RecordFeedScreen: View {
     private var filterBar: some View {
         VStack(alignment: .leading, spacing: 8) {
             if selectedSurface == .record {
-                Text("回看范围")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
                 Picker("范围", selection: $selectedScope) {
                     ForEach(RecordListScope.allCases) { scope in
                         Text(scope.title).tag(scope)

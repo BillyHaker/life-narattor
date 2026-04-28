@@ -27,9 +27,7 @@ struct TimelineScreen: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 18) {
-                headerView
-
+            VStack(alignment: .leading, spacing: 16) {
                 Picker("范围", selection: $selectedScope) {
                     ForEach(TimelineScope.timelineTabs) { scope in
                         Text(scope.title).tag(scope)
@@ -95,19 +93,6 @@ struct TimelineScreen: View {
                 refreshSnapshotsIfNeeded(prioritizedKind: currentSnapshotKind)
             }
         }
-    }
-
-    private var headerView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("时间线")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-
-            Text(scopeDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
     }
 
     private var rangeSummaryView: some View {
@@ -200,19 +185,6 @@ struct TimelineScreen: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-    }
-
-    private var scopeDescription: String {
-        switch selectedScope {
-        case .today:
-            return "今天先看节点，昨天的故事线会放在上面给你一个参考。"
-        case .week:
-            return "回看最近 7 天留下的片段；如果已有整理好的故事线，会放在上面。"
-        case .month:
-            return "回看最近 30 天留下的片段；如果已有整理好的故事线，会放在上面。"
-        case .custom:
-            return "这里按最近 30 天排开，但上面的故事线不会跟着实时跳动。"
-        }
     }
 
     private var currentSummaryDisplay: TimelineSnapshotSummaryDisplay {
