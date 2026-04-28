@@ -14,6 +14,7 @@ struct RecordFeedScreen: View {
     private let context: NSManagedObjectContext
     private let aiService: AIService
     private let calendar = Calendar.current
+    private let recordListBottomID = "record-list-bottom-anchor"
 
     init(context: NSManagedObjectContext, aiService: AIService) {
         self.context = context
@@ -160,6 +161,10 @@ struct RecordFeedScreen: View {
                             sectionListContent(for: section)
                         }
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(recordListBottomID)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
@@ -472,16 +477,12 @@ struct RecordFeedScreen: View {
         recordFilteredCaptures.map(\.id)
     }
 
-    private var latestCaptureID: UUID? {
-        recordFilteredCaptures.max(by: { $0.createdAt < $1.createdAt })?.id
-    }
-
     private func scrollToLatestIfNeeded(with proxy: ScrollViewProxy) {
         guard shouldAutoScrollToLatest else { return }
-        guard let latestID = latestCaptureID else { return }
+        guard !currentCaptureIDs.isEmpty else { return }
         DispatchQueue.main.async {
             DispatchQueue.main.async {
-                proxy.scrollTo(latestID, anchor: .bottom)
+                proxy.scrollTo(recordListBottomID, anchor: .bottom)
                 shouldAutoScrollToLatest = false
             }
         }
