@@ -1,6 +1,6 @@
 # 测试版提审前准备工作清单
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 Status: Submission preflight checklist
 
 ## 目标
@@ -12,7 +12,7 @@ Status: Submission preflight checklist
 - [x] `AI 回顾` 是回顾 Tab 的主入口，默认进入可提问的 AI 回顾界面。
 - [x] 旧的周/月回顾入口不出现在主路径；遗留 screen 已改为滚动 `7 天回顾` / `30 天回顾` 口径。
 - [x] 时间线的周期入口使用 `7天回顾` / `30天回顾`，不再用容易误解的自然周/自然月文案。
-- [x] Dev Tab 在 `#if DEBUG` 下编译，Release/TestFlight 不显示。
+- [x] Dev Tab 在 `#if DEBUG` 下编译，Release/TestFlight 不显示；Debug 运行也默认隐藏，只有内部开关显式打开时才显示。
 - [x] 面向用户的推荐标签系统已关闭，不作为本版测试范围。
 
 ### B. AI 与转写安全边界
@@ -47,6 +47,8 @@ Status: Submission preflight checklist
 - [ ] Debug 构建通过。
 - [ ] Release 构建通过，用于确认 TestFlight 编译分支可用。
 - [ ] 如果测试 target 可运行，测试通过。
+- [ ] Release/Archive 产物安装后底部 Tab 不出现 `Dev`。
+- [ ] Archive validation 通过，且选中正确构建版本。
 - [ ] backend proxy 关键路由可用：`/v1/chat`, `/v1/transcribe`, `/admin`。
 - [ ] 没有明显假成功：AI 未配置时明确失败，而不是返回 mock 结果。
 - [ ] 关键路径不出现明显卡死、重复请求或状态残留。
@@ -70,6 +72,20 @@ Status: Submission preflight checklist
 - [ ] App 隐私信息按当前实际数据处理方式填写。
 - [ ] 价格、分类、描述、关键词、审核备注已填写。
 - [ ] 截图尺寸符合 App Store Connect 要求。
+- [ ] 已选择构建版本，且版本号 / build number 与本次提交一致。
+- [ ] 审核备注说明 AI 功能需要联网、测试账号/邀请码方式、以及 Dev 工具不会出现在 Release。
+
+## 二点五、2026-04-28 复查发现的易忽略项
+
+这些不是新功能，但属于提交前容易漏掉的门面和运营准备项：
+
+- [ ] 用 Release 配置或 Archive 安装包做一次完整视觉巡检，确认底部只有 `记录 / 时间线 / AI 回顾`，不出现 `Dev`。
+- [ ] App Store Connect 的 `App 隐私` 需要和当前真实数据流一致：本地记录默认本地保存；AI/转写/整理/回顾会通过后台代理处理必要内容；admin/usage 只做测试运营统计。
+- [ ] 技术支持 URL、隐私政策 URL 都需要公网可访问，不能只是在本地或 GitHub 私有仓库里。
+- [ ] 选定一个最终 archive build 后重新跑 validation；此前图标和截图问题已经出现过，不能只依赖 Xcode Debug build。
+- [ ] 后台生产环境至少确认健康检查、邀请码/注册、usage 计数、日额度限制和超额提示。
+- [ ] 准备一段简短审核备注，说明测试用户如何进入、AI 功能如何触发、没有付费墙、没有暴露 provider key。
+- [ ] 准备一份 5-10 分钟人工 smoke test 记录：文本记录、语音转写、助手、整理为记录、AI 回顾、时间线、无 Dev。
 
 ## 三、本版明确延后
 - [x] 用户自带 AI API 模式。

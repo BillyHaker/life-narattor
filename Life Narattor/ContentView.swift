@@ -14,6 +14,7 @@ struct ContentView: View {
 
     @Environment(\.managedObjectContext) private var context
     @AppStorage("app.hasSeenPrivacyIntro") private var hasSeenPrivacyIntro = false
+    @StateObject private var featureFlags = FeatureFlags.shared
     @State private var selectedTab: RootTab = .record
 
     private let aiService: AIService
@@ -47,11 +48,13 @@ struct ContentView: View {
                         .tag(RootTab.review)
 
 #if DEBUG
-                    DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
-                        .tabItem {
-                            Label("Dev", systemImage: "hammer")
-                        }
-                        .tag(RootTab.dev)
+                    if featureFlags.isDeveloperMenuVisible {
+                        DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
+                            .tabItem {
+                                Label("Dev", systemImage: "hammer")
+                            }
+                            .tag(RootTab.dev)
+                    }
 #endif
                 }
             } else {

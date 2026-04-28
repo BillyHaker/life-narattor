@@ -21,6 +21,17 @@ final class FeatureFlags: ObservableObject {
         set { set(newValue, for: Keys.isSeedSampleDataEnabled) }
     }
 
+    var isDeveloperMenuVisible: Bool {
+        get {
+#if DEBUG
+            return store.bool(forKey: Keys.isDeveloperMenuVisible)
+#else
+            return false
+#endif
+        }
+        set { set(newValue, for: Keys.isDeveloperMenuVisible) }
+    }
+
     var isTranscriptionFailureSimulated: Bool {
         get {
 #if DEBUG
@@ -59,6 +70,7 @@ final class FeatureFlags: ObservableObject {
             "isVerboseLoggingEnabled": isVerboseLoggingEnabled,
             "isNetworkRecordingEnabled": isNetworkRecordingEnabled,
             "isSeedSampleDataEnabled": isSeedSampleDataEnabled,
+            "isDeveloperMenuVisible": isDeveloperMenuVisible,
             "isTranscriptionFailureSimulated": isTranscriptionFailureSimulated,
             "isTranscriptionOfflineSimulated": isTranscriptionOfflineSimulated,
             "isAITranscriptionPreferred": isAITranscriptionPreferred
@@ -69,6 +81,7 @@ final class FeatureFlags: ObservableObject {
         static let isVerboseLoggingEnabled = "feature.isVerboseLoggingEnabled"
         static let isNetworkRecordingEnabled = "feature.isNetworkRecordingEnabled"
         static let isSeedSampleDataEnabled = "feature.isSeedSampleDataEnabled"
+        static let isDeveloperMenuVisible = "feature.isDeveloperMenuVisible"
         static let isTranscriptionFailureSimulated = "feature.isTranscriptionFailureSimulated"
         static let isTranscriptionOfflineSimulated = "feature.isTranscriptionOfflineSimulated"
         static let isAITranscriptionPreferred = "feature.isAITranscriptionPreferred"

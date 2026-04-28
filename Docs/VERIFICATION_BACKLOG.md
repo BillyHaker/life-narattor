@@ -240,3 +240,11 @@ pending-count: 16
 - added: 2026-04-28
 - status: pending
 - notes: 验证路径为 AI 回顾 -> 空输入首页 -> 检查 `最近线索` 卡片视觉和数量 -> 点击一张线索卡 -> 确认进入加载/结果状态，时间筛选变为最近 90 天且线索筛选匹配该标签类型。
+
+### VRF-023
+- feature: Release/Archive Dev 隐藏巡检
+- description: Release、Archive 或 TestFlight 安装包底部不应出现 `Dev`；Debug 清空本地状态后也不应默认出现 `Dev`，除非内部显式打开开发者菜单开关。
+- type: human-visual
+- added: 2026-04-28
+- status: pending
+- notes: 验证路径为安装最终构建 -> 打开 App -> 检查底部 Tab；预期只出现面向用户的主入口，不出现锤子/Dev。若使用 Debug 验证，需先清空 App 数据或确认 `feature.isDeveloperMenuVisible` 未被手动设为 true。
