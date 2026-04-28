@@ -247,17 +247,9 @@ struct RecordFeedScreen: View {
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("今天 · \(formattedDate(Date()))")
                 .font(.title2.weight(.semibold))
-            Text(headerSubtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if selectedSurface == .record {
-                Text("随手记一句就好，我会安静整理成之后能回看的线索。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(.horizontal, 16)
     }
@@ -498,13 +490,6 @@ struct RecordFeedScreen: View {
 
     private var inputPlaceholder: String {
         selectedSurface == .record ? "记一句当下发生的事或想法…" : "告诉助手你想梳理什么…"
-    }
-
-    private var headerSubtitle: String {
-        if selectedSurface == .record {
-            return "已记下 \(recordFilteredCaptures.count) 条"
-        }
-        return "\(viewModel.activeAssistThreadTitle) · 确认后写入记录"
     }
 
     @ViewBuilder

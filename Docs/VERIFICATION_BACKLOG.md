@@ -264,3 +264,11 @@ pending-count: 16
 - added: 2026-04-28
 - status: pending
 - notes: 验证路径为 AI 回顾 -> 空输入首页。建议用 `工作安排`、`晨间启动`、`情绪波动`、`游戏段位`、`健身饮食` 等线索观察图标/副文案是否合理；点击卡片仍应自动进入 AI 回顾。
+
+### VRF-026
+- feature: 记录页顶部仅显示今天日期
+- description: 记录页顶部应只保留 `今天 · 日期` 一行，不再显示已记录数量或解释性文案；切换到助手 surface 后顶部也不应重新出现辅助说明。
+- type: human-visual
+- added: 2026-04-28
+- status: pending
+- notes: 验证路径为 记录 -> 查看顶部；切换记录/助手 segmented control；确认顶部只保留今天日期，下面直接进入范围筛选/搜索区域。
