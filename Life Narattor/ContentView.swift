@@ -14,6 +14,7 @@ struct ContentView: View {
 
     @Environment(\.managedObjectContext) private var context
     @AppStorage("app.hasSeenPrivacyIntro") private var hasSeenPrivacyIntro = false
+    @AppStorage("privacy.hasConsentedToAIProcessing") private var hasConsentedToAIProcessing = false
     @StateObject private var featureFlags = FeatureFlags.shared
     @State private var selectedTab: RootTab = .record
 
@@ -25,7 +26,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if hasSeenPrivacyIntro {
+            if hasSeenPrivacyIntro && hasConsentedToAIProcessing {
                 TabView(selection: $selectedTab) {
                     RecordFeedScreen(context: context, aiService: aiService)
                         .tabItem {
@@ -61,6 +62,7 @@ struct ContentView: View {
                 PrivacyIntroScreen {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         hasSeenPrivacyIntro = true
+                        hasConsentedToAIProcessing = true
                     }
                 }
             }
@@ -87,52 +89,58 @@ private struct PrivacyIntroScreen: View {
             )
             .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("开始之前")
-                        .font(.system(size: 34, weight: .bold))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("隐私与 AI 处理说明")
+                            .font(.system(size: 34, weight: .bold))
 
-                    Text("先把数据边界说清楚，再开始使用。")
-                        .font(.system(size: 17, weight: .medium))
+                        Text("先把哪些内容会留在本地、哪些内容会发给 AI 服务说清楚。")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        PrivacyPoint(
+                            title: "默认只保存在本地",
+                            detail: "你输入的文字记录、语音、转写结果、整理结果和拆分结果默认保存在本机。我们不会把完整记录上传到服务器做长期内容存储。"
+                        )
+
+                        PrivacyPoint(
+                            title: "使用 AI 时会发送必要内容",
+                            detail: "当你主动使用 AI 回顾、助手对话、整理为记录或语音转写时，应用会发送完成本次请求所需的记录文本、问题、相关片段，或语音转写所需音频。"
+                        )
+
+                        PrivacyPoint(
+                            title: "接收方是 AI 服务提供方",
+                            detail: "这些请求会通过 Life Narrator 后台代理发送给第三方 AI 服务处理，包括 OpenAI，以及用于语音转写的火山引擎/豆包服务。"
+                        )
+
+                        PrivacyPoint(
+                            title: "用途仅限完成你请求的功能",
+                            detail: "发送的数据只用于生成本次转写、整理、对话或回顾结果；不用于广告追踪，不出售给第三方，也不会把上游模型密钥放进应用。"
+                        )
+                    }
+
+                    Text("点击“同意并继续”代表你允许应用在你使用 AI 功能时，按上述方式把必要内容发送给相关 AI 服务处理。")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button(action: onContinue) {
+                        Text("同意并继续")
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-
-                VStack(alignment: .leading, spacing: 14) {
-                    PrivacyPoint(
-                        title: "默认只保存在本地",
-                        detail: "文字记录、语音、转写和整理结果，默认只保存在你的本地设备上。"
-                    )
-
-                    PrivacyPoint(
-                        title: "联网功能会单独处理",
-                        detail: "只有在你主动使用 AI 对话、AI 回顾、转写或整理功能时，应用才会把必要内容通过我们的后台代理发送给模型服务处理。"
-                    )
-
-                    PrivacyPoint(
-                        title: "不会暴露模型密钥",
-                        detail: "测试版中的 AI 功能通过平台后台统一调用，不会把上游模型服务的密钥放进应用或发给用户端。"
-                    )
-                }
-
-                Text("继续代表你已经了解当前版本默认以本地优先存储为基础。")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-
-                Button(action: onContinue) {
-                    Text("继续")
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(.borderedProminent)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 24)
+                .padding(.top, 48)
+                .padding(.bottom, 34)
+                .frame(maxWidth: 620)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 48)
-            .padding(.bottom, 34)
-            .frame(maxWidth: 620)
         }
     }
 }

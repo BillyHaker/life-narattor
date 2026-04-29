@@ -5,8 +5,11 @@ Life Narattor is a personal recording app that helps users capture notes, voice 
 
 ## Privacy boundary
 - Record content is stored locally on device by default.
-- The app does not expose upstream provider API keys to end users.
+- Before entering the app, users must review and accept the in-app “Privacy and AI Processing” disclosure.
 - AI features that require network processing go through the product backend proxy.
+- Data sent for AI processing may include record text, user questions, related snippets, draft text, and audio needed for transcription.
+- Current third-party AI service providers are OpenAI and Volcano Engine/Doubao for speech transcription.
+- The app does not expose upstream provider API keys to end users.
 
 ## Current beta scope
 - Text records

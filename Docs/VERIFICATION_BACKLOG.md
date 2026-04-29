@@ -1,8 +1,8 @@
 # Verification Backlog
 project: Life Narrator
-last-updated: 2026-03-22
+last-updated: 2026-04-29
 next-milestone: TBD
-pending-count: 16
+pending-count: 17
 
 ---
 
@@ -312,3 +312,11 @@ pending-count: 16
 - added: 2026-04-28
 - status: pending
 - notes: 验证路径为 记录 -> 准备多天多条记录 -> 从 `今天` 切到 `全部` -> 确认视口落在最新日期/最新记录附近；反复切换 `近7天` / `全部`，确认不再回到最早记录。
+
+### VRF-032
+- feature: AI 第三方数据处理授权说明
+- description: 新安装或旧版本升级后，如果尚未记录 `privacy.hasConsentedToAIProcessing`，用户应先看到 `隐私与 AI 处理说明`，页面需说明会发送哪些数据、发送给谁、用途是什么，并要求点击 `同意并继续` 后才能进入 App。
+- type: human-visual
+- added: 2026-04-29
+- status: pending
+- notes: 验证路径为清空 App 数据后启动；另用升级路径模拟 `app.hasSeenPrivacyIntro=true` 且 `privacy.hasConsentedToAIProcessing=false`。确认进入主界面前无法访问 AI 回顾、助手、语音转写等入口。
