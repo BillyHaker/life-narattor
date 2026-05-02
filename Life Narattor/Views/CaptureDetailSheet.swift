@@ -59,6 +59,7 @@ struct CaptureDetailSheet: View {
     @State private var currentAtomizationStatusMessage: String?
     @State private var showingEditSheet = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingFeedback = false
     @State private var isDeleting = false
     @Environment(\.dismiss) private var dismiss
 
@@ -280,6 +281,11 @@ struct CaptureDetailSheet: View {
             .sheet(isPresented: $showingSourceHighlight) {
                 sourceHighlightSheet
             }
+            .sheet(isPresented: $showingFeedback) {
+                NavigationStack {
+                    FeedbackScreen()
+                }
+            }
             .confirmationDialog(
                 "删除这条记录？",
                 isPresented: $showingDeleteConfirmation,
@@ -363,6 +369,10 @@ struct CaptureDetailSheet: View {
                         ensureAtomsIfNeeded(force: true)
                     }
                     .font(.footnote.weight(.semibold))
+                    Button("反馈") {
+                        showingFeedback = true
+                    }
+                    .font(.footnote.weight(.semibold))
                 }
             } else if atoms.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -372,6 +382,12 @@ struct CaptureDetailSheet: View {
                     if recordUnits.isEmpty {
                         Button("重新拆分") {
                             ensureAtomsIfNeeded(force: true)
+                        }
+                        .font(.footnote.weight(.semibold))
+                    }
+                    if currentProcessingState == .splitFailed {
+                        Button("反馈问题") {
+                            showingFeedback = true
                         }
                         .font(.footnote.weight(.semibold))
                     }

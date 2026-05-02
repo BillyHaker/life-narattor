@@ -1,0 +1,13 @@
+{
+  "name": "life-narrator-ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check usage_limits.js && node --check beta_user_store.js && node --check invite_store.js && node --check feedback_store.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

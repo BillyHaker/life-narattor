@@ -401,6 +401,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_LifeNarratorAIBaseURL = "$(LIFENARRATOR_AI_BASE_URL)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于录音并保存语音记录。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于将语音记录转换为文字。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -411,6 +412,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIFENARRATOR_AI_BASE_URL = "";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jintaoha.Life-Narattor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -435,6 +437,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_LifeNarratorAIBaseURL = "$(LIFENARRATOR_AI_BASE_URL)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于录音并保存语音记录。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于将语音记录转换为文字。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -445,6 +448,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIFENARRATOR_AI_BASE_URL = "";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jintaoha.Life-Narattor";
 				PRODUCT_NAME = "$(TARGET_NAME)";

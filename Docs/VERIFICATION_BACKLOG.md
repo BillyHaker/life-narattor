@@ -2,7 +2,7 @@
 project: Life Narrator
 last-updated: 2026-05-02
 next-milestone: TBD
-pending-count: 37
+pending-count: 38
 
 ---
 
@@ -360,3 +360,11 @@ pending-count: 37
 - added: 2026-05-02
 - status: pending
 - notes: 验证路径为安装到模拟器或真机 -> 回到主屏幕查看图标；再执行 Archive/Validate，确认 App Store 不再报告 icon alpha 或尺寸问题。
+
+### VRF-038
+- feature: Release AI backend configuration and in-app feedback
+- description: Public/App Store builds should use a configured public HTTPS AI backend instead of debug-only local config; Settings and AI failure states should expose `反馈问题`; feedback should submit description, optional contact, optional screenshot, and be visible in backend admin.
+- type: backend-manual
+- added: 2026-05-02
+- status: pending
+- notes: 验证路径为部署 backend -> 将 HTTPS base URL 写入 `Life Narattor/AppConfig.plist` 的 `AIBaseURL` -> Archive/安装新构建 -> 验证记录拆分、助手、AI 回顾不再提示 AI 服务不可用 -> 设置页提交反馈（含截图）-> 打开 `/admin/feedback` 确认能看到反馈。当前已自动验证本地 backend smoke、Debug build、Release simulator build、Xcode test；公网部署和真机/商店包行为仍需人工验证。

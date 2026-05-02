@@ -46,12 +46,51 @@ enum AIServiceFactory {
 
 struct BackendConfig {
     static var baseURL: URL? {
-        guard let raw = ProcessInfo.processInfo.environment["LIFENARRATOR_AI_BASE"] else { return nil }
-        return URL(string: raw)
+        if let raw = ProcessInfo.processInfo.environment["LIFENARRATOR_AI_BASE"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty {
+            return URL(string: raw)
+        }
+
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "LifeNarratorAIBaseURL") as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return URL(string: trimmed)
+            }
+        }
+
+        if let raw = bundledAppConfigValue(forKey: "AIBaseURL") {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return URL(string: trimmed)
+            }
+        }
+
+        return nil
     }
 
     static var token: String? {
         ProcessInfo.processInfo.environment["LIFENARRATOR_AI_TOKEN"]
+    }
+
+    private static func bundledAppConfigValue(forKey key: String) -> String? {
+        guard let url = Bundle.main.url(forResource: "AppConfig", withExtension: "plist"),
+              let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            return nil
+        }
+        return plist[key] as? String
+    }
+}
+
+enum AppRuntimeIdentity {
+    static func userIdentifier() -> String {
+        let key = "LifeNarrator.BetaUserID"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let created = "beta-\(UUID().uuidString.lowercased())"
+        UserDefaults.standard.set(created, forKey: key)
+        return created
     }
 }
 
@@ -1356,13 +1395,7 @@ final class BackendAIService: AIService {
     }
 
     private func betaUserIdentifier() -> String {
-        let key = "LifeNarrator.BetaUserID"
-        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
-            return existing
-        }
-        let created = "beta-\(UUID().uuidString.lowercased())"
-        UserDefaults.standard.set(created, forKey: key)
-        return created
+        AppRuntimeIdentity.userIdentifier()
     }
 
     private func estimatedAudioDurationSeconds(for fileURL: URL) -> Int {

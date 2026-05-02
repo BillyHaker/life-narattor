@@ -22,6 +22,10 @@ import {
     markInviteSent,
     markInviteUsed
 } from "./invite_store.js";
+import {
+    createFeedback,
+    listFeedback
+} from "./feedback_store.js";
 
 const config = {
     port: Number(process.env.PORT || 8787),
@@ -43,7 +47,8 @@ const config = {
     adminToken: process.env.ADMIN_TOKEN || "",
     resendApiKey: process.env.RESEND_API_KEY || "",
     inviteEmailFrom: process.env.INVITE_EMAIL_FROM || "",
-    inviteEmailReplyTo: process.env.INVITE_EMAIL_REPLY_TO || ""
+    inviteEmailReplyTo: process.env.INVITE_EMAIL_REPLY_TO || "",
+    feedbackMaxBytes: Number(process.env.FEEDBACK_MAX_BYTES || 5_000_000)
 };
 
 const rateMap = new Map();
@@ -68,6 +73,20 @@ const server = http.createServer(async (req, res) => {
             return json(res, 200, handleBetaRegister(body));
         } catch (error) {
             return json(res, 400, { error: "beta_register_failed", message: error?.message || "unknown_error" });
+        }
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/feedback") {
+        try {
+            const userId = req.headers["x-user-id"]?.toString() || "anonymous";
+            if (!isRateAllowed(`feedback:${userId}`)) {
+                return json(res, 429, { error: "rate_limited" });
+            }
+            const body = await readJSON(req, config.feedbackMaxBytes);
+            const feedback = handleFeedback(body, req, userId);
+            return json(res, 200, { ok: true, feedback_id: feedback.feedback_id });
+        } catch (error) {
+            return json(res, 400, { error: "feedback_failed", message: error?.message || "unknown_error" });
         }
     }
 
@@ -302,12 +321,12 @@ function recordRequestEvent({ userId, requestType, success, audioSeconds = 0, es
     });
 }
 
-async function readJSON(req) {
+async function readJSON(req, maxBytes = 1_000_000) {
     const chunks = [];
     let size = 0;
     for await (const chunk of req) {
         size += chunk.length;
-        if (size > 1_000_000) {
+        if (size > maxBytes) {
             throw new Error("payload_too_large");
         }
         chunks.push(chunk);
@@ -365,6 +384,10 @@ async function handleAdmin(req, res, url) {
 
     if (req.method === "GET" && url.pathname === "/admin/invites") {
         return html(res, 200, renderAdminInvites(url));
+    }
+
+    if (req.method === "GET" && url.pathname === "/admin/feedback") {
+        return html(res, 200, renderAdminFeedback(url));
     }
 
     if (req.method === "POST" && url.pathname === "/admin/invites") {
@@ -445,6 +468,24 @@ function handleBetaRegister(body) {
         display_name: user.display_name,
         auth_provider: user.auth_provider
     };
+}
+
+function handleFeedback(body, req, userId) {
+    const message = body?.message?.toString().trim() || "";
+    if (message.length < 2) {
+        throw new Error("missing_message");
+    }
+
+    return createFeedback({
+        userId,
+        appId: req.headers["x-app-id"]?.toString() || body?.app_id,
+        appVersion: req.headers["x-app-version"]?.toString() || body?.app_version,
+        osVersion: body?.os_version,
+        deviceModel: body?.device_model,
+        contact: body?.contact,
+        message,
+        screenshot: body?.screenshot
+    });
 }
 
 async function readForm(req) {
@@ -541,6 +582,7 @@ function renderAdminDashboard(url) {
         <div class="card quick-links">
             <a href="/admin/users${adminTokenSuffix(url)}">查看测试用户</a>
             <a href="/admin/invites${adminTokenSuffix(url)}">查看邀请码</a>
+            <a href="/admin/feedback${adminTokenSuffix(url)}">查看反馈</a>
         </div>
     `;
     return renderAdminPage(url, "Admin Dashboard", body);
@@ -663,6 +705,36 @@ function renderAdminInvites(url, options = {}) {
     `);
 }
 
+function renderAdminFeedback(url) {
+    const rows = listFeedback(80).map((item) => {
+        const screenshot = item.screenshot?.data
+            ? `<details><summary>查看截图</summary><img class="feedback-shot" src="data:${escapeHTML(item.screenshot.mime_type)};base64,${item.screenshot.data}" alt="feedback screenshot" /></details>`
+            : "—";
+        return `
+            <tr>
+                <td>${escapeHTML(item.created_at || "—")}</td>
+                <td>${escapeHTML(item.contact || "—")}</td>
+                <td>${escapeHTML(item.user_id || "—")}</td>
+                <td>${escapeHTML(item.app_version || "—")}</td>
+                <td>${escapeHTML(item.device_model || "—")}<br><span class="muted">${escapeHTML(item.os_version || "—")}</span></td>
+                <td class="feedback-message">${escapeHTML(item.message || "")}</td>
+                <td>${screenshot}</td>
+            </tr>
+        `;
+    }).join("");
+
+    return renderAdminPage(url, "Feedback", `
+        <div class="card">
+            <h2>用户反馈</h2>
+            <p>这里展示用户主动提交的问题描述、回访方式、设备信息和可选截图。反馈接口不接收完整记录正文。</p>
+            <table>
+                <thead><tr><th>时间</th><th>回访方式</th><th>User ID</th><th>版本</th><th>设备</th><th>描述</th><th>截图</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="7">暂无反馈</td></tr>'}</tbody>
+            </table>
+        </div>
+    `);
+}
+
 function renderAdminPage(url, title, body) {
     return `<!doctype html>
 <html lang="zh-CN">
@@ -695,6 +767,9 @@ function renderAdminPage(url, title, body) {
     .quick-links a { color:var(--blue); text-decoration:none; }
     .flash { background:#eef5ff; border:1px solid #cfe4ff; color:#0f4ea8; border-radius:14px; padding:12px 14px; margin-bottom:16px; }
     .flash.error { background:#fff1f2; border-color:#fecdd3; color:#be123c; }
+    .feedback-message { max-width:360px; white-space:pre-wrap; line-height:1.5; }
+    .feedback-shot { display:block; max-width:240px; max-height:420px; border-radius:16px; border:1px solid var(--line); margin-top:10px; }
+    .muted { color:var(--muted); font-size:12px; }
     code { background:#f3f4f6; border-radius:8px; padding:2px 6px; }
   </style>
 </head>
@@ -705,6 +780,7 @@ function renderAdminPage(url, title, body) {
       <a href="/admin${adminTokenSuffix(url)}">总览</a>
       <a href="/admin/users${adminTokenSuffix(url)}">用户</a>
       <a href="/admin/invites${adminTokenSuffix(url)}">邀请码</a>
+      <a href="/admin/feedback${adminTokenSuffix(url)}">反馈</a>
     </div>
     ${body}
   </div>

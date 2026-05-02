@@ -239,7 +239,7 @@ final class CaptureFeedViewModel: ObservableObject {
             case .emptyResponse:
                 return "AI 拆分结果为空，请重新拆分。"
             case .missingAPIKey:
-                return "AI 配置缺失，无法拆分。"
+                return "AI 服务暂时不可用，请稍后再试。"
             case .unsupported:
                 return "当前环境不支持 AI 拆分。"
             }
@@ -2009,7 +2009,7 @@ final class CaptureFeedViewModel: ObservableObject {
         if let aiError = error as? AIServiceError {
             switch aiError {
             case .missingAPIKey:
-                return "整理记录失败：AI 服务未配置密钥"
+                return "整理记录失败：AI 服务暂时不可用"
             case .invalidResponse:
                 return "整理记录失败：AI 返回内容无法解析"
             case .httpStatus(let code):
@@ -2057,7 +2057,7 @@ final class CaptureFeedViewModel: ObservableObject {
         if let aiError = error as? AIServiceError {
             switch aiError {
             case .missingAPIKey:
-                return "转写服务未配置密钥"
+                return "转写服务暂时不可用"
             case .invalidResponse:
                 return "转写服务返回异常响应"
             case .httpStatus(let code):

@@ -40,6 +40,20 @@ struct AppSettingsScreen: View {
                     }
 
                     SettingsListCard(title: "帮助与关于") {
+                        NavigationLink {
+                            FeedbackScreen()
+                        } label: {
+                            SettingsBaseRow(systemImage: "bubble.left.and.text.bubble.right") {
+                                Text("反馈问题")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                Spacer(minLength: 12)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .buttonStyle(.plain)
                         SettingsLinkRow(title: "技术支持", systemImage: "questionmark.circle", url: supportURL)
                         SettingsValueRow(title: "版本", systemImage: "info.circle", value: appVersionText)
                     }

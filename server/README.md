@@ -37,6 +37,10 @@ This server keeps upstream AI provider keys off-device and enforces basic protec
 - `REVIEW_WHITELIST` — comma-separated reviewer user ids, treated as `reviewer` tier
 - `RATE_LIMIT_RPM` — requests per minute per user/token (default 30)
 
+### Feedback
+- `FEEDBACK_STORE_PATH` — JSONL path for in-app feedback. If unset, the server uses the system temp directory.
+- `FEEDBACK_MAX_BYTES` — maximum feedback request size, including optional screenshot base64 (default `5000000`).
+
 ### Usage tiers and quotas
 - `USAGE_STORE_PATH` — path for the local usage store. If unset, the server uses the system temp directory.
 - `USAGE_DEFAULT_TIER` — default tier for public users. Supported values: `trial`, `free`, `daily`, `deep`, `reviewer`. Default: `trial`.
@@ -83,7 +87,18 @@ The current public build still routes managed AI through this backend. User-prov
 - `POST /v1/assist`
 - `POST /v1/tasks` (returns stub ID)
 - `POST /v1/transcribe` (provider-routed, returns `{ "text": "..." }`)
+- `POST /v1/feedback` (stores user-submitted feedback, contact info, device info, and optional screenshot)
 - `GET /healthz`
+
+## Public deployment
+The App Store build needs a public HTTPS URL for this server. Recommended first deployment shape:
+
+1. Create a small Node service on Render, Railway, Fly.io, or another HTTPS host.
+2. Use `server/Dockerfile` or run `npm start` from the `server/` directory.
+3. Configure provider keys and persistent store paths as environment variables.
+4. Leave `ALLOWED_TOKENS` empty for the first public build unless the app is also configured with a client token. User-level cost control is enforced by `X-User-Id` quotas.
+5. After deployment, open `https://<your-host>/healthz` and confirm `{ "status": "ok" }`.
+6. Put the resulting HTTPS URL into `Life Narattor/AppConfig.plist` as `AIBaseURL` before archiving. The app also supports the `LifeNarratorAIBaseURL` Info.plist key if you configure it through Xcode build settings.
 
 ## Local keep-alive (macOS launchd)
 Use the helper script:
