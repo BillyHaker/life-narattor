@@ -9,6 +9,7 @@ struct RecordFeedScreen: View {
     @State private var selectedScope: RecordListScope = .today
     @State private var searchQuery: String = ""
     @State private var shouldAutoScrollToLatest: Bool = true
+    @State private var isSettingsPresented = false
     @FocusState private var isSearchFieldFocused: Bool
     @FocusState private var isInputFieldFocused: Bool
     private let context: NSManagedObjectContext
@@ -63,6 +64,9 @@ struct RecordFeedScreen: View {
                         }
                     }
                 )
+            }
+            .sheet(isPresented: $isSettingsPresented) {
+                AppSettingsScreen()
             }
             .fullScreenCover(isPresented: assistDraftEditorBinding) {
                 if let payload = viewModel.assistDraftPayload {
@@ -256,9 +260,26 @@ struct RecordFeedScreen: View {
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center, spacing: 12) {
             Text("今天 · \(formattedDate(Date()))")
                 .font(.title2.weight(.semibold))
+
+            Spacer()
+
+            Button {
+                dismissKeyboard()
+                isSettingsPresented = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 42, height: 42)
+                    .background(Color(.systemBackground))
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("设置")
         }
         .padding(.horizontal, 16)
     }

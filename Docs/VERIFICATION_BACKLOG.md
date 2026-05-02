@@ -336,3 +336,11 @@ pending-count: 17
 - added: 2026-05-02
 - status: pending
 - notes: 验证路径为部署 backend -> 设置 `USAGE_DEFAULT_TIER=trial` 和持久 `USAGE_STORE_PATH` -> 用新 user id 触发 AI 请求 -> 打开 `/admin/users/<id>` 检查 trial/700 点/试用剩余天数。再将测试 user id 加入 `USAGE_DAILY_USER_IDS`、`USAGE_DEEP_USER_IDS`，确认分别显示 1500/4500 月点数。用低 `USAGE_CREDIT_LIMIT_OVERRIDES` 临时压测，确认超额返回 HTTP 402 而不是 429。StoreKit 接入后，需要复验订阅状态能正确同步到 daily/deep。
+
+### VRF-035
+- feature: 用户设置页入口与内容
+- description: 记录页日期右侧应出现设置按钮；点击后应打开设置页，显示 AI 与额度、隐私与 AI 处理、语音与权限、支持和版本信息。DevTools 不应出现在公开设置页中。
+- type: human-visual
+- added: 2026-05-02
+- status: pending
+- notes: 验证路径为 记录 -> 点击右上角设置按钮 -> 检查设置页布局和关闭行为；点击隐私政策、技术支持和系统权限设置入口，确认分别能打开对应页面。确认正式/公开界面没有暴露 DevTools 入口。
