@@ -1,8 +1,8 @@
 # Verification Backlog
 project: Life Narrator
-last-updated: 2026-04-29
+last-updated: 2026-05-02
 next-milestone: TBD
-pending-count: 17
+pending-count: 37
 
 ---
 
@@ -352,3 +352,11 @@ pending-count: 17
 - added: 2026-05-02
 - status: pending
 - notes: 验证路径为 记录 -> 设置。确认顶部卡片、分组标题、行图标、状态文字和链接行为自然；确认 `管理订阅`、`自带 API`、`导出数据` 等未来能力文案不会造成误导；确认隐私政策、技术支持和系统设置入口可打开。
+
+### VRF-037
+- feature: App 图标清新简约替换
+- description: App 图标应在 iOS 主屏幕、Spotlight、小尺寸通知/设置场景下保持清晰，整体风格应简约、清新、轻量，不应出现文字、透明通道或复杂细节。
+- type: human-visual
+- added: 2026-05-02
+- status: pending
+- notes: 验证路径为安装到模拟器或真机 -> 回到主屏幕查看图标；再执行 Archive/Validate，确认 App Store 不再报告 icon alpha 或尺寸问题。
