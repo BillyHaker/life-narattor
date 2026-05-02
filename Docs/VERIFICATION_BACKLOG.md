@@ -320,3 +320,11 @@ pending-count: 17
 - added: 2026-04-29
 - status: pending
 - notes: 验证路径为清空 App 数据后启动；另用升级路径模拟 `app.hasSeenPrivacyIntro=true` 且 `privacy.hasConsentedToAIProcessing=false`。确认进入主界面前无法访问 AI 回顾、助手、语音转写等入口。
+
+### VRF-033
+- feature: Backend free/pro/reviewer AI quota rollout
+- description: Production backend should default public users to `free`, allow selected user ids to become `pro` or `reviewer`, persist usage outside temp storage when `USAGE_STORE_PATH` is configured, and show tier/model/token information in `/admin`.
+- type: backend-manual
+- added: 2026-05-02
+- status: pending
+- notes: 验证路径为部署 backend -> 设置 `USAGE_STORE_PATH`、`USAGE_DEFAULT_TIER=free` -> 用真实 App 触发记录、助手、AI 回顾、语音转写 -> 打开 `/admin` 检查 tier totals、quota hits、estimated tokens。再将一个测试 user id 加入 `USAGE_PRO_USER_IDS` 或 `USAGE_REVIEWER_USER_IDS`，确认该用户详情页显示正确层级且额度提升。

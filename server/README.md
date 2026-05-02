@@ -34,9 +34,33 @@ This server keeps upstream AI provider keys off-device and enforces basic protec
 
 ### Protection controls
 - `ALLOWED_TOKENS` — comma-separated bearer tokens allowed to call the proxy
-- `REVIEW_WHITELIST` — comma-separated reviewer user ids (optional; not enforced by default)
+- `REVIEW_WHITELIST` — comma-separated reviewer user ids, treated as `reviewer` tier
 - `RATE_LIMIT_RPM` — requests per minute per user/token (default 30)
-- `DAILY_QUOTA` — requests per day per user/token (default 200)
+
+### Usage tiers and quotas
+- `USAGE_STORE_PATH` — path for the local usage store. If unset, the server uses the system temp directory.
+- `USAGE_DEFAULT_TIER` — default tier for public users. Supported values: `free`, `pro`, `reviewer`. Default: `free`.
+- `USAGE_PRO_USER_IDS` — comma-separated user ids with `pro` limits.
+- `USAGE_REVIEWER_USER_IDS` — comma-separated user ids with `reviewer` limits.
+- `USAGE_TIER_OVERRIDES` — JSON object for explicit user tier mapping, for example `{ "user_a": "pro", "user_b": "reviewer" }`.
+- `USAGE_LIMIT_OVERRIDES` — JSON object for emergency quota tuning without redeploying code. You can override by tier and request type, for example `{ "free": { "chat": 8, "transcription": { "daily": 180, "kind": "seconds" } } }`.
+
+Default tier behavior:
+- `free` keeps records, cleaning, atomization, light review, and limited assistant use available while controlling cost.
+- `pro` raises daily limits for assistant, review, and transcription.
+- `reviewer` is intended for App Review or trusted testers so they are not blocked during validation.
+
+Current `free` daily limits:
+- Assistant chat: 12
+- Conversation-to-record archive: 3
+- AI review overview/focused/follow-up: 4 / 4 / 6
+- Transcription: 300 seconds
+- Record processing internals: quick ack 60, clean 40, atomize 40, tag suggestions 40
+
+The admin dashboard shows request totals, quota hits, tier usage, per-user tier, model/provider, and estimated input tokens.
+
+### User-provided API keys
+The current public build still routes managed AI through this backend. User-provided AI or transcription APIs are reserved for a later setting and should remain OpenAI-compatible with the app's existing JSON-schema request contract before being exposed.
 
 ## Request headers expected
 - `Authorization: Bearer <token>` (optional unless `ALLOWED_TOKENS` set)

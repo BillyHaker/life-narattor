@@ -100,88 +100,90 @@ const server = http.createServer(async (req, res) => {
     const quotaAmount = quotaAmountFor(requestType, audioSeconds);
     const quota = checkQuota(userId, requestType, quotaAmount);
     if (!quota.allowed) {
-        recordUsageEvent({ userId, requestType, success: false, audioSeconds, detail: "quota_exceeded" });
+        recordRequestEvent({ userId, requestType, success: false, audioSeconds, detail: "quota_exceeded" });
         return json(res, 429, quotaErrorPayload(userId, requestType, quotaAmount));
     }
     consumeQuota(userId, requestType, quotaAmount);
+    let requestEstimatedTokens = 0;
 
     try {
         if (url.pathname === "/v1/transcribe") {
             const payload = await handleTranscribe(req);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         const body = await readJSON(req);
+        requestEstimatedTokens = estimatePayloadTokens(body);
         if (url.pathname === "/v1/quick/ack") {
             const payload = await handleQuickAck(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/assist") {
             const payload = await handleAssist(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/chat") {
             const payload = await handleChat(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/focused-analysis") {
             const payload = await handleFocusedAnalysis(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/review-analysis") {
             const payload = await handleReviewAnalysis(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/clean") {
             const payload = await handleClean(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/atomize") {
             const payload = await handleAtomize(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/tags") {
             const payload = await handleTags(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/hidden-tags/cluster") {
             const payload = await handleHiddenTagCluster(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/hidden-tags/normalize") {
             const payload = await handleHiddenTagNormalize(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         if (url.pathname === "/v1/tasks") {
             const payload = await handleTask(body);
-            recordUsageEvent({ userId, requestType, success: true, audioSeconds, detail: null });
+            recordRequestEvent({ userId, requestType, success: true, audioSeconds, detail: null, estimatedTokens: requestEstimatedTokens });
             return json(res, 200, payload);
         }
 
         return json(res, 404, { error: "not_found" });
     } catch (error) {
-        recordUsageEvent({ userId, requestType, success: false, audioSeconds, detail: error?.message || null });
+        recordRequestEvent({ userId, requestType, success: false, audioSeconds, detail: error?.message || null, estimatedTokens: requestEstimatedTokens });
         return json(res, 500, { error: "server_error", message: error?.message });
     }
 });
@@ -264,6 +266,40 @@ function quotaAmountFor(requestType, audioSeconds) {
         return Math.max(1, Math.ceil(audioSeconds));
     }
     return 1;
+}
+
+function modelForRequestType(requestType) {
+    if (requestType === "quick_ack") return config.modelQuick;
+    if (requestType === "transcription") return config.transcribeProvider;
+    if (requestType === "tasks") return null;
+    return config.modelAssist;
+}
+
+function providerForRequestType(requestType) {
+    if (requestType === "transcription") return config.transcribeProvider;
+    if (requestType === "tasks") return "local";
+    return "openai_compatible";
+}
+
+function estimatePayloadTokens(payload) {
+    try {
+        return Math.ceil(JSON.stringify(payload || {}).length / 4);
+    } catch {
+        return 0;
+    }
+}
+
+function recordRequestEvent({ userId, requestType, success, audioSeconds = 0, estimatedTokens = 0, detail = null }) {
+    recordUsageEvent({
+        userId,
+        requestType,
+        success,
+        audioSeconds,
+        estimatedTokens,
+        model: modelForRequestType(requestType),
+        provider: providerForRequestType(requestType),
+        detail
+    });
 }
 
 async function readJSON(req) {
@@ -475,6 +511,9 @@ function renderAdminDashboard(url) {
     const requestRows = summary.request_totals.map((row) => `
         <tr><td>${escapeHTML(row.request_type)}</td><td>${row.used}</td></tr>
     `).join("");
+    const tierRows = summary.tier_totals.map((row) => `
+        <tr><td>${escapeHTML(row.tier)}</td><td>${row.used}</td></tr>
+    `).join("");
 
     const body = `
         <div class="grid">
@@ -482,12 +521,20 @@ function renderAdminDashboard(url) {
             <div class="card metric"><div class="label">活跃用户</div><div class="value">${summary.active_users}</div></div>
             <div class="card metric"><div class="label">转写秒数</div><div class="value">${summary.total_transcription_seconds}</div></div>
             <div class="card metric"><div class="label">限额命中</div><div class="value">${summary.quota_hits}</div></div>
+            <div class="card metric"><div class="label">估算输入 tokens</div><div class="value">${summary.estimated_tokens}</div></div>
         </div>
         <div class="card">
             <h2>今日请求分布</h2>
             <table>
                 <thead><tr><th>类型</th><th>用量</th></tr></thead>
                 <tbody>${requestRows || '<tr><td colspan="2">暂无数据</td></tr>'}</tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h2>今日额度层级</h2>
+            <table>
+                <thead><tr><th>层级</th><th>用量</th></tr></thead>
+                <tbody>${tierRows || '<tr><td colspan="2">暂无数据</td></tr>'}</tbody>
             </table>
         </div>
         <div class="card quick-links">
@@ -506,6 +553,7 @@ function renderAdminUsers(url) {
             <tr>
                 <td><a href="/admin/users/${encodeURIComponent(user.user_id)}${adminTokenSuffix(url)}">${escapeHTML(user.user_id)}</a></td>
                 <td>${escapeHTML(user.email || "—")}</td>
+                <td>${escapeHTML(usage.tier)}</td>
                 <td>${escapeHTML(user.last_seen_at || "—")}</td>
                 <td>${usage.entries.reduce((sum, entry) => sum + entry.used, 0)}</td>
                 <td>${usage.transcription_seconds}</td>
@@ -517,8 +565,8 @@ function renderAdminUsers(url) {
         <div class="card">
             <h2>测试用户</h2>
             <table>
-                <thead><tr><th>User ID</th><th>Email</th><th>最近活跃</th><th>今日请求</th><th>转写秒数</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="5">暂无用户</td></tr>'}</tbody>
+                <thead><tr><th>User ID</th><th>Email</th><th>层级</th><th>最近活跃</th><th>今日请求</th><th>转写秒数</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="6">暂无用户</td></tr>'}</tbody>
             </table>
         </div>
     `);
@@ -534,7 +582,14 @@ function renderAdminUserDetail(url, userId) {
         <tr><td>${escapeHTML(entry.request_type)}</td><td>${entry.used}</td><td>${entry.limit}</td><td>${escapeHTML(entry.unit)}</td></tr>
     `).join("");
     const eventRows = usage.recent_events.map((entry) => `
-        <tr><td>${escapeHTML(entry.created_at || "—")}</td><td>${escapeHTML(entry.request_type)}</td><td>${entry.success ? "成功" : "失败"}</td><td>${escapeHTML(entry.detail || "—")}</td></tr>
+        <tr>
+            <td>${escapeHTML(entry.created_at || "—")}</td>
+            <td>${escapeHTML(entry.request_type)}</td>
+            <td>${escapeHTML(entry.model || "—")}</td>
+            <td>${Number(entry.estimated_tokens || 0)}</td>
+            <td>${entry.success ? "成功" : "失败"}</td>
+            <td>${escapeHTML(entry.detail || "—")}</td>
+        </tr>
     `).join("");
 
     return renderAdminPage(url, `User ${userId}`, `
@@ -542,7 +597,9 @@ function renderAdminUserDetail(url, userId) {
             <h2>${escapeHTML(user.display_name || user.user_id)}</h2>
             <p>Email：${escapeHTML(user.email || "—")}</p>
             <p>来源：${escapeHTML(user.auth_provider || "—")}</p>
+            <p>额度层级：${escapeHTML(usage.tier)}</p>
             <p>最近活跃：${escapeHTML(user.last_seen_at || "—")}</p>
+            <p>最近估算输入 tokens：${usage.estimated_tokens}</p>
         </div>
         <div class="card">
             <h2>今日使用</h2>
@@ -554,8 +611,8 @@ function renderAdminUserDetail(url, userId) {
         <div class="card">
             <h2>最近事件</h2>
             <table>
-                <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>详情</th></tr></thead>
-                <tbody>${eventRows || '<tr><td colspan="4">暂无事件</td></tr>'}</tbody>
+                <thead><tr><th>时间</th><th>类型</th><th>模型/服务</th><th>估算 tokens</th><th>状态</th><th>详情</th></tr></thead>
+                <tbody>${eventRows || '<tr><td colspan="6">暂无事件</td></tr>'}</tbody>
             </table>
         </div>
     `);
