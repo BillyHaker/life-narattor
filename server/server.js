@@ -100,8 +100,8 @@ const server = http.createServer(async (req, res) => {
     const quotaAmount = quotaAmountFor(requestType, audioSeconds);
     const quota = checkQuota(userId, requestType, quotaAmount);
     if (!quota.allowed) {
-        recordRequestEvent({ userId, requestType, success: false, audioSeconds, detail: "quota_exceeded" });
-        return json(res, 429, quotaErrorPayload(userId, requestType, quotaAmount));
+        recordRequestEvent({ userId, requestType, success: false, audioSeconds, detail: "ai_credit_exhausted" });
+        return json(res, 402, quotaErrorPayload(userId, requestType, quotaAmount));
     }
     consumeQuota(userId, requestType, quotaAmount);
     let requestEstimatedTokens = 0;
@@ -519,6 +519,7 @@ function renderAdminDashboard(url) {
         <div class="grid">
             <div class="card metric"><div class="label">今日总请求</div><div class="value">${summary.total_requests}</div></div>
             <div class="card metric"><div class="label">活跃用户</div><div class="value">${summary.active_users}</div></div>
+            <div class="card metric"><div class="label">今日消耗点数</div><div class="value">${summary.total_credits}</div></div>
             <div class="card metric"><div class="label">转写秒数</div><div class="value">${summary.total_transcription_seconds}</div></div>
             <div class="card metric"><div class="label">限额命中</div><div class="value">${summary.quota_hits}</div></div>
             <div class="card metric"><div class="label">估算输入 tokens</div><div class="value">${summary.estimated_tokens}</div></div>
@@ -526,14 +527,14 @@ function renderAdminDashboard(url) {
         <div class="card">
             <h2>今日请求分布</h2>
             <table>
-                <thead><tr><th>类型</th><th>用量</th></tr></thead>
+                <thead><tr><th>类型</th><th>消耗点数</th></tr></thead>
                 <tbody>${requestRows || '<tr><td colspan="2">暂无数据</td></tr>'}</tbody>
             </table>
         </div>
         <div class="card">
             <h2>今日额度层级</h2>
             <table>
-                <thead><tr><th>层级</th><th>用量</th></tr></thead>
+                <thead><tr><th>层级</th><th>消耗点数</th></tr></thead>
                 <tbody>${tierRows || '<tr><td colspan="2">暂无数据</td></tr>'}</tbody>
             </table>
         </div>
@@ -555,7 +556,7 @@ function renderAdminUsers(url) {
                 <td>${escapeHTML(user.email || "—")}</td>
                 <td>${escapeHTML(usage.tier)}</td>
                 <td>${escapeHTML(user.last_seen_at || "—")}</td>
-                <td>${usage.entries.reduce((sum, entry) => sum + entry.used, 0)}</td>
+                <td>${usage.credits_used} / ${usage.credit_limit}</td>
                 <td>${usage.transcription_seconds}</td>
             </tr>
         `;
@@ -565,7 +566,7 @@ function renderAdminUsers(url) {
         <div class="card">
             <h2>测试用户</h2>
             <table>
-                <thead><tr><th>User ID</th><th>Email</th><th>层级</th><th>最近活跃</th><th>今日请求</th><th>转写秒数</th></tr></thead>
+                <thead><tr><th>User ID</th><th>Email</th><th>层级</th><th>最近活跃</th><th>本月点数</th><th>最近转写秒数</th></tr></thead>
                 <tbody>${rows || '<tr><td colspan="6">暂无用户</td></tr>'}</tbody>
             </table>
         </div>
@@ -579,13 +580,14 @@ function renderAdminUserDetail(url, userId) {
     }
     const usage = getUserUsageSummary(userId);
     const usageRows = usage.entries.map((entry) => `
-        <tr><td>${escapeHTML(entry.request_type)}</td><td>${entry.used}</td><td>${entry.limit}</td><td>${escapeHTML(entry.unit)}</td></tr>
+        <tr><td>${escapeHTML(entry.request_type)}</td><td>${entry.used}</td><td>${entry.request_count}</td><td>${entry.limit}</td></tr>
     `).join("");
     const eventRows = usage.recent_events.map((entry) => `
         <tr>
             <td>${escapeHTML(entry.created_at || "—")}</td>
             <td>${escapeHTML(entry.request_type)}</td>
             <td>${escapeHTML(entry.model || "—")}</td>
+            <td>${Number(entry.credits || 0)}</td>
             <td>${Number(entry.estimated_tokens || 0)}</td>
             <td>${entry.success ? "成功" : "失败"}</td>
             <td>${escapeHTML(entry.detail || "—")}</td>
@@ -598,21 +600,23 @@ function renderAdminUserDetail(url, userId) {
             <p>Email：${escapeHTML(user.email || "—")}</p>
             <p>来源：${escapeHTML(user.auth_provider || "—")}</p>
             <p>额度层级：${escapeHTML(usage.tier)}</p>
+            <p>本月点数：${usage.credits_used} / ${usage.credit_limit}，剩余 ${usage.credits_remaining}</p>
+            <p>试用状态：${usage.trial?.active ? `试用中，剩余 ${usage.trial.days_remaining} 天` : "未在试用期"}</p>
             <p>最近活跃：${escapeHTML(user.last_seen_at || "—")}</p>
             <p>最近估算输入 tokens：${usage.estimated_tokens}</p>
         </div>
         <div class="card">
-            <h2>今日使用</h2>
+            <h2>本月点数消耗</h2>
             <table>
-                <thead><tr><th>类型</th><th>已用</th><th>额度</th><th>单位</th></tr></thead>
+                <thead><tr><th>类型</th><th>点数</th><th>请求数</th><th>月额度</th></tr></thead>
                 <tbody>${usageRows || '<tr><td colspan="4">暂无使用</td></tr>'}</tbody>
             </table>
         </div>
         <div class="card">
             <h2>最近事件</h2>
             <table>
-                <thead><tr><th>时间</th><th>类型</th><th>模型/服务</th><th>估算 tokens</th><th>状态</th><th>详情</th></tr></thead>
-                <tbody>${eventRows || '<tr><td colspan="6">暂无事件</td></tr>'}</tbody>
+                <thead><tr><th>时间</th><th>类型</th><th>模型/服务</th><th>点数</th><th>估算 tokens</th><th>状态</th><th>详情</th></tr></thead>
+                <tbody>${eventRows || '<tr><td colspan="7">暂无事件</td></tr>'}</tbody>
             </table>
         </div>
     `);

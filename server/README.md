@@ -39,25 +39,36 @@ This server keeps upstream AI provider keys off-device and enforces basic protec
 
 ### Usage tiers and quotas
 - `USAGE_STORE_PATH` — path for the local usage store. If unset, the server uses the system temp directory.
-- `USAGE_DEFAULT_TIER` — default tier for public users. Supported values: `free`, `pro`, `reviewer`. Default: `free`.
-- `USAGE_PRO_USER_IDS` — comma-separated user ids with `pro` limits.
+- `USAGE_DEFAULT_TIER` — default tier for public users. Supported values: `trial`, `free`, `daily`, `deep`, `reviewer`. Default: `trial`.
+- `USAGE_TRIAL_DAYS` — free full-experience trial length in days. Default: `7`.
+- `USAGE_DAILY_USER_IDS` — comma-separated user ids with the low-pressure paid tier, intended for the ¥8/month plan.
+- `USAGE_DEEP_USER_IDS` — comma-separated user ids with the higher paid tier, intended for the ¥16/month plan.
+- `USAGE_PRO_USER_IDS` — legacy alias treated as `deep`.
 - `USAGE_REVIEWER_USER_IDS` — comma-separated user ids with `reviewer` limits.
-- `USAGE_TIER_OVERRIDES` — JSON object for explicit user tier mapping, for example `{ "user_a": "pro", "user_b": "reviewer" }`.
-- `USAGE_LIMIT_OVERRIDES` — JSON object for emergency quota tuning without redeploying code. You can override by tier and request type, for example `{ "free": { "chat": 8, "transcription": { "daily": 180, "kind": "seconds" } } }`.
+- `USAGE_TIER_OVERRIDES` — JSON object for explicit user tier mapping, for example `{ "user_a": "daily", "user_b": "reviewer" }`.
+- `USAGE_CREDIT_LIMIT_OVERRIDES` — JSON object for emergency monthly credit tuning without redeploying code, for example `{ "free": 250, "daily": 1200 }`.
+- `USAGE_CREDIT_COST_OVERRIDES` — JSON object for emergency per-request credit tuning, for example `{ "chat": 4, "transcription": { "creditsPerMinute": 12, "minimumCredits": 1 } }`.
 
 Default tier behavior:
-- `free` keeps records, cleaning, atomization, light review, and limited assistant use available while controlling cost.
-- `pro` raises daily limits for assistant, review, and transcription.
+- `trial` gives a new user 7 days of full AI access with a 700-credit trial pool, then automatically falls back to `free`.
+- `free` gives 300 credits per month while keeping local recording free.
+- `daily` gives 1500 credits per month and maps to the planned ¥8/month tier.
+- `deep` gives 4500 credits per month and maps to the planned ¥16/month tier.
 - `reviewer` is intended for App Review or trusted testers so they are not blocked during validation.
 
-Current `free` daily limits:
-- Assistant chat: 12
-- Conversation-to-record archive: 3
-- AI review overview/focused/follow-up: 4 / 4 / 6
-- Transcription: 300 seconds
-- Record processing internals: quick ack 60, clean 40, atomize 40, tag suggestions 40
+Default credit costs:
+- Quick acknowledgement: 0
+- Clean transcript: 1
+- Atomize record: 1
+- Hidden/implicit tag suggestions: 1
+- Assistant chat: 3
+- Conversation-to-record archive: 8
+- AI review: 5
+- AI review follow-up: 3
+- Transcription: 10 credits per minute
+- Hidden tag monthly clustering or normalization: 20
 
-The admin dashboard shows request totals, quota hits, tier usage, per-user tier, model/provider, and estimated input tokens.
+The admin dashboard shows request totals, credit usage, quota hits, tier usage, per-user tier, model/provider, and estimated input tokens.
 
 ### User-provided API keys
 The current public build still routes managed AI through this backend. User-provided AI or transcription APIs are reserved for a later setting and should remain OpenAI-compatible with the app's existing JSON-schema request contract before being exposed.

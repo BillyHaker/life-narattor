@@ -326,5 +326,13 @@ pending-count: 17
 - description: Production backend should default public users to `free`, allow selected user ids to become `pro` or `reviewer`, persist usage outside temp storage when `USAGE_STORE_PATH` is configured, and show tier/model/token information in `/admin`.
 - type: backend-manual
 - added: 2026-05-02
+- status: superseded
+- notes: 已被 `VRF-034` 的 AI 点数模型验证项取代。原 free/pro/reviewer 按次数额度已改为 trial/free/daily/deep/reviewer 按点数额度。
+
+### VRF-034
+- feature: AI credit model production rollout
+- description: Backend should default fresh public users to a 7-day `trial` tier with 700 credits, then fall back to `free`; paid test users should map to `daily` or `deep`; credit exhaustion should return HTTP 402 `ai_credit_exhausted`; admin should show monthly credits, remaining credits, tier, and trial status.
+- type: backend-manual
+- added: 2026-05-02
 - status: pending
-- notes: 验证路径为部署 backend -> 设置 `USAGE_STORE_PATH`、`USAGE_DEFAULT_TIER=free` -> 用真实 App 触发记录、助手、AI 回顾、语音转写 -> 打开 `/admin` 检查 tier totals、quota hits、estimated tokens。再将一个测试 user id 加入 `USAGE_PRO_USER_IDS` 或 `USAGE_REVIEWER_USER_IDS`，确认该用户详情页显示正确层级且额度提升。
+- notes: 验证路径为部署 backend -> 设置 `USAGE_DEFAULT_TIER=trial` 和持久 `USAGE_STORE_PATH` -> 用新 user id 触发 AI 请求 -> 打开 `/admin/users/<id>` 检查 trial/700 点/试用剩余天数。再将测试 user id 加入 `USAGE_DAILY_USER_IDS`、`USAGE_DEEP_USER_IDS`，确认分别显示 1500/4500 月点数。用低 `USAGE_CREDIT_LIMIT_OVERRIDES` 临时压测，确认超额返回 HTTP 402 而不是 429。StoreKit 接入后，需要复验订阅状态能正确同步到 daily/deep。
