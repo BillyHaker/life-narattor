@@ -196,6 +196,9 @@ final class CaptureFeedViewModel: ObservableObject {
         if let aiError = error as? AIServiceError {
             switch aiError {
             case .httpStatus(let code):
+                if code == 402 {
+                    return false
+                }
                 return [408, 429, 500, 502, 503, 504].contains(code)
             case .emptyResponse, .invalidResponse:
                 return false
@@ -221,6 +224,9 @@ final class CaptureFeedViewModel: ObservableObject {
         if let aiError = error as? AIServiceError {
             switch aiError {
             case .httpStatus(let code):
+                if code == 402 {
+                    return "本月免费 AI 额度已用完，下月会自动恢复。记录功能仍可继续使用。"
+                }
                 if deferred {
                     switch code {
                     case 408:
@@ -2000,6 +2006,9 @@ final class CaptureFeedViewModel: ObservableObject {
     private func transcriptionRetryExhaustedReason(for error: Error) -> String {
         if let aiError = error as? AIServiceError,
            case .httpStatus(let code) = aiError {
+            if code == 402 {
+                return "本月免费转写额度已用完，下月会自动恢复。"
+            }
             return "转写重试已达上限（\(transcriptionMaxRetryAttempts)次，HTTP \(code)）"
         }
         return "转写重试已达上限（\(transcriptionMaxRetryAttempts)次）"
@@ -2013,6 +2022,9 @@ final class CaptureFeedViewModel: ObservableObject {
             case .invalidResponse:
                 return "整理记录失败：AI 返回内容无法解析"
             case .httpStatus(let code):
+                if code == 402 {
+                    return "本月免费 AI 额度已用完，下月会自动恢复。记录功能仍可继续使用。"
+                }
                 return "整理记录失败：AI 服务异常（HTTP \(code)）"
             case .emptyResponse:
                 return "整理记录失败：AI 返回为空"
@@ -2061,6 +2073,9 @@ final class CaptureFeedViewModel: ObservableObject {
             case .invalidResponse:
                 return "转写服务返回异常响应"
             case .httpStatus(let code):
+                if code == 402 {
+                    return "本月免费转写额度已用完，下月会自动恢复。"
+                }
                 return "转写服务异常（HTTP \(code)）"
             case .emptyResponse:
                 return "转写结果为空，请重试"

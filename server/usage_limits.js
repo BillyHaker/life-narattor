@@ -167,7 +167,7 @@ export function resolveUsageTier(userId, store = loadStore()) {
   ];
   if (userId && reviewerUsers.includes(userId)) return 'reviewer';
 
-  const defaultTier = normalizeTier(process.env.USAGE_DEFAULT_TIER || 'trial');
+  const defaultTier = normalizeTier(process.env.USAGE_DEFAULT_TIER || 'free');
   if (defaultTier === 'trial') {
     return trialStatusFor(profile).active ? 'trial' : 'free';
   }

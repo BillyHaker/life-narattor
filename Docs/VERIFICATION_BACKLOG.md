@@ -331,11 +331,11 @@ pending-count: 38
 
 ### VRF-034
 - feature: AI credit model production rollout
-- description: Backend should default fresh public users to a 7-day `trial` tier with 700 credits, then fall back to `free`; paid test users should map to `daily` or `deep`; credit exhaustion should return HTTP 402 `ai_credit_exhausted`; admin should show monthly credits, remaining credits, tier, and trial status.
+- description: Backend should enforce monthly AI credits and return HTTP 402 `ai_credit_exhausted` when exhausted. The original trial/daily/deep paid-tier rollout is no longer the current product direction.
 - type: backend-manual
 - added: 2026-05-02
-- status: pending
-- notes: 验证路径为部署 backend -> 设置 `USAGE_DEFAULT_TIER=trial` 和持久 `USAGE_STORE_PATH` -> 用新 user id 触发 AI 请求 -> 打开 `/admin/users/<id>` 检查 trial/700 点/试用剩余天数。再将测试 user id 加入 `USAGE_DAILY_USER_IDS`、`USAGE_DEEP_USER_IDS`，确认分别显示 1500/4500 月点数。用低 `USAGE_CREDIT_LIMIT_OVERRIDES` 临时压测，确认超额返回 HTTP 402 而不是 429。StoreKit 接入后，需要复验订阅状态能正确同步到 daily/deep。
+- status: superseded
+- notes: 已被 `VRF-039` 的免费版月额度验证项取代。当前公开版本默认 `free`，不自动开启 7 天 trial，也不展示 daily/deep 付费档位。
 
 ### VRF-035
 - feature: 用户设置页入口与内容
@@ -368,3 +368,11 @@ pending-count: 38
 - added: 2026-05-02
 - status: pending
 - notes: 验证路径为部署 backend -> 将 HTTPS base URL 写入 `Life Narattor/AppConfig.plist` 的 `AIBaseURL` -> Archive/安装新构建 -> 验证记录拆分、助手、AI 回顾不再提示 AI 服务不可用 -> 设置页提交反馈（含截图）-> 打开 `/admin/feedback` 确认能看到反馈。当前已自动验证本地 backend smoke、Debug build、Release simulator build、Xcode test；公网部署和真机/商店包行为仍需人工验证。
+
+### VRF-039
+- feature: 免费版 AI 月额度
+- description: 公开 backend 默认新用户为 `free`，每月有免费 AI 点数；额度耗尽时返回 HTTP 402 `ai_credit_exhausted`，App 应显示友好的免费额度用完提示；设置页应说明当前只有免费版，订阅暂未开放。
+- type: backend-manual + human-visual
+- added: 2026-05-03
+- status: pending
+- notes: 验证路径为部署 backend 且不设置 `USAGE_DEFAULT_TIER` -> 用新 user id 触发 AI 请求 -> 打开 `/admin/users/<id>` 检查 tier 为 `free`、月额度为 300。 staging 环境可临时设置 `USAGE_CREDIT_LIMIT_OVERRIDES={"free":3}` 后触发超额，确认 App 提示“本月免费 AI 额度已用完，下月会自动恢复”。设置页应显示 `免费版`、`每月免费额度`，且不出现 `7 天试用` 或可管理订阅入口。

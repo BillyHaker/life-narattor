@@ -20,9 +20,13 @@ struct AppSettingsScreen: View {
                     planCard
 
                     SettingsListCard(title: "AI 与订阅") {
-                        SettingsValueRow(title: "当前方案", systemImage: "sparkles", value: "免费体验")
-                        SettingsValueRow(title: "AI 额度", systemImage: "bolt.circle", value: "按使用量消耗")
-                        SettingsValueRow(title: "管理订阅", systemImage: "creditcard", value: "即将开放")
+                        SettingsValueRow(title: "当前方案", systemImage: "sparkles", value: "免费版")
+                        SettingsValueRow(title: "AI 额度", systemImage: "bolt.circle", value: "每月免费额度")
+                        SettingsDetailRow(
+                            title: "订阅状态",
+                            systemImage: "creditcard",
+                            detail: "目前暂不开放付费订阅。基础记录免费，AI 功能使用免费额度，用完后下月自动恢复。"
+                        )
                         SettingsValueRow(title: "自带 API", systemImage: "key", value: "计划中")
                     }
 
@@ -112,10 +116,10 @@ struct AppSettingsScreen: View {
                     Text("Life Narrator")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.primary)
-                    Text("当前为免费体验")
+                    Text("当前为免费版")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.blue)
-                    Text("基础记录保持轻量免费，AI 功能按额度使用。")
+                    Text("基础记录保持免费，AI 功能有每月免费额度。额度用完后，下月会自动恢复。")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -124,8 +128,8 @@ struct AppSettingsScreen: View {
 
             HStack(spacing: 10) {
                 SettingsPill(text: "本地优先")
-                SettingsPill(text: "AI 额度")
-                SettingsPill(text: "7 天试用")
+                SettingsPill(text: "免费版")
+                SettingsPill(text: "每月额度")
             }
         }
         .padding(18)
