@@ -3,11 +3,13 @@ import CoreData
 struct PersistenceController {
     static let shared = PersistenceController()
 
-    let container: NSPersistentContainer
+    let container: NSPersistentCloudKitContainer
+
+    private static let cloudKitContainerIdentifier = "iCloud.com.jintaoha.Life-Narattor"
 
     init(inMemory: Bool = false) {
         let model = Self.makeManagedObjectModel()
-        container = NSPersistentContainer(name: "LifeNarratorModel", managedObjectModel: model)
+        container = NSPersistentCloudKitContainer(name: "LifeNarratorModel", managedObjectModel: model)
 
         if inMemory {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
@@ -16,6 +18,13 @@ struct PersistenceController {
         if let description = container.persistentStoreDescriptions.first {
             description.shouldMigrateStoreAutomatically = true
             description.shouldInferMappingModelAutomatically = true
+            description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            if !inMemory {
+                description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                    containerIdentifier: Self.cloudKitContainerIdentifier
+                )
+            }
         }
 
         loadPersistentStores()
@@ -26,31 +35,20 @@ struct PersistenceController {
     }
 
     private func loadPersistentStores() {
-        container.loadPersistentStores { [container] description, error in
+        container.loadPersistentStores { description, error in
             if let error = error as NSError? {
-                guard let storeURL = description.url else {
-                    assertionFailure("Unresolved error \(error), \(error.userInfo)")
-                    return
-                }
-
-                do {
-                    try container.persistentStoreCoordinator.destroyPersistentStore(
-                        at: storeURL,
-                        ofType: NSSQLiteStoreType,
-                        options: description.options
-                    )
-                    container.loadPersistentStores { _, retryError in
-                        if let retryError = retryError as NSError? {
-                            assertionFailure("Unresolved error \(retryError), \(retryError.userInfo)")
-                        }
-                    }
-                } catch let error as NSError {
-                    assertionFailure("Unresolved error \(error), \(error.userInfo)")
-                } catch {
-                    assertionFailure("Unresolved error \(error)")
-                }
+                Self.logPersistentStoreLoadFailure(error, storeURL: description.url)
+                assertionFailure("Persistent store load failed without destructive recovery: \(error), \(error.userInfo)")
             }
         }
+    }
+
+    private static func logPersistentStoreLoadFailure(_ error: NSError, storeURL: URL?) {
+        let storePath = storeURL?.path ?? "unknown"
+        LogStore.shared.log(
+            "Persistent store load failed path=\(storePath) error=[\(error.domain):\(error.code)] \(error.localizedDescription)",
+            category: .jobs
+        )
     }
 
     private func seedVisibleTagLibraryIfNeeded() {
@@ -466,6 +464,47 @@ struct PersistenceController {
         ]
 
         model.entities = [captureEntity, artifactEntity, atomEntity, tagEntity, atomTagEntity]
+        applyCloudKitCompatibilityDefaults(to: model)
         return model
+    }
+
+    private static func applyCloudKitCompatibilityDefaults(to model: NSManagedObjectModel) {
+        for entity in model.entities {
+            for property in entity.properties {
+                guard let attribute = property as? NSAttributeDescription,
+                      !attribute.isOptional,
+                      attribute.defaultValue == nil else {
+                    continue
+                }
+                attribute.defaultValue = defaultValue(for: attribute.attributeType)
+            }
+        }
+    }
+
+    private static func defaultValue(for type: NSAttributeType) -> Any? {
+        switch type {
+        case .UUIDAttributeType:
+            return UUID(uuidString: "00000000-0000-0000-0000-000000000000")
+        case .dateAttributeType:
+            return Date(timeIntervalSince1970: 0)
+        case .stringAttributeType:
+            return ""
+        case .booleanAttributeType:
+            return false
+        case .integer16AttributeType:
+            return Int16(0)
+        case .integer32AttributeType:
+            return Int32(0)
+        case .integer64AttributeType:
+            return Int64(0)
+        case .floatAttributeType:
+            return Float(0)
+        case .doubleAttributeType:
+            return Double(0)
+        case .decimalAttributeType:
+            return Decimal(0)
+        default:
+            return nil
+        }
     }
 }

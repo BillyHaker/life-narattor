@@ -178,7 +178,7 @@ If content-level debugging is ever needed, it should require a separate consente
 
 Recommended opening privacy statement:
 
-> 我们重视你的隐私。默认情况下，你记录的内容只保存在你的本地设备上，包括文字记录、语音、转写和整理结果。我们不会默认把这些原始内容上传到服务器。只有当某项功能明确需要联网处理，或你未来主动开启同步/自带 API 等能力时，我们才会向你说明相应的数据使用方式。
+> 我们重视你的隐私。默认情况下，你记录的内容以本机保存为主，包括文字记录、语音、转写和整理结果。为了帮助你恢复数据，核心文字记录和结构化数据可通过你的 Apple iCloud 私有数据库同步；Life Narrator 服务器不会默认把完整原始内容作为长期内容主库保存。只有当某项功能明确需要联网处理，或你未来主动开启自带 API 等能力时，我们才会向你说明相应的数据使用方式。
 
 This statement should appear early in onboarding or first-launch explanation.
 

@@ -376,3 +376,11 @@ pending-count: 38
 - added: 2026-05-03
 - status: pending
 - notes: 验证路径为部署 backend 且不设置 `USAGE_DEFAULT_TIER` -> 用新 user id 触发 AI 请求 -> 打开 `/admin/users/<id>` 检查 tier 为 `free`、月额度为 300。 staging 环境可临时设置 `USAGE_CREDIT_LIMIT_OVERRIDES={"free":3}` 后触发超额，确认 App 提示“本月免费 AI 额度已用完，下月会自动恢复”。设置页应显示 `免费版`、`每月免费额度`，且不出现 `7 天试用` 或可管理订阅入口。
+
+### VRF-040
+- feature: iCloud 私有同步与重装恢复
+- description: 文字记录、转写、整理结果、拆分结构和标签应通过用户自己的 iCloud 私有数据库恢复；删除 App 或换同 Apple ID 设备后，应能恢复这些结构化数据。原始录音文件当前不承诺跨设备恢复。
+- type: signed-device-manual
+- added: 2026-05-03
+- status: pending
+- notes: 验证路径为确认 Apple Developer/Xcode 已启用 iCloud + CloudKit container `iCloud.com.jintaoha.Life-Narattor` -> 安装签名包到已登录 iCloud 的真机 A -> 创建文字和语音记录并完成整理/拆分 -> 等待 CloudKit 同步 -> 删除重装或在真机 B 同 Apple ID 安装 -> 确认记录、转写、整理结果、拆分片段、显性/隐性标签恢复。另在未登录 iCloud 状态下打开设置页，确认提示为 `未检测到可用 iCloud`。

@@ -83,14 +83,29 @@ struct BackendConfig {
 }
 
 enum AppRuntimeIdentity {
+    private static let key = "LifeNarrator.BetaUserID"
+
     static func userIdentifier() -> String {
-        let key = "LifeNarrator.BetaUserID"
         if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            syncToICloudIfNeeded(existing)
             return existing
+        }
+        if let cloudValue = NSUbiquitousKeyValueStore.default.string(forKey: key), !cloudValue.isEmpty {
+            UserDefaults.standard.set(cloudValue, forKey: key)
+            return cloudValue
         }
         let created = "beta-\(UUID().uuidString.lowercased())"
         UserDefaults.standard.set(created, forKey: key)
+        syncToICloudIfNeeded(created)
         return created
+    }
+
+    private static func syncToICloudIfNeeded(_ userID: String) {
+        let store = NSUbiquitousKeyValueStore.default
+        if store.string(forKey: key) != userID {
+            store.set(userID, forKey: key)
+        }
+        store.synchronize()
     }
 }
 

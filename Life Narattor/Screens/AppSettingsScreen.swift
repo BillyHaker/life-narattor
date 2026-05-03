@@ -31,7 +31,12 @@ struct AppSettingsScreen: View {
                     }
 
                     SettingsListCard(title: "数据与隐私") {
-                        SettingsValueRow(title: "本地记录", systemImage: "iphone", value: "默认保存在本机")
+                        SettingsValueRow(title: "本地记录", systemImage: "iphone", value: "本机优先保存")
+                        SettingsDetailRow(
+                            title: "iCloud 同步",
+                            systemImage: "icloud",
+                            detail: "\(iCloudSyncStatusText)。文字记录、转写、整理结果、拆分结构和标签会同步到你的 iCloud 私有数据库；原始录音文件暂不保证跨设备恢复。"
+                        )
                         SettingsValueRow(title: "导出数据", systemImage: "square.and.arrow.up", value: "即将支持")
                         SettingsDetailRow(
                             title: "AI 处理说明",
@@ -146,6 +151,10 @@ struct AppSettingsScreen: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
         return "\(version) (\(build))"
+    }
+
+    private var iCloudSyncStatusText: String {
+        FileManager.default.ubiquityIdentityToken == nil ? "未检测到可用 iCloud" : "iCloud 可用"
     }
 
     private func openSystemSettings() {

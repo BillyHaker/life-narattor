@@ -198,15 +198,20 @@ private struct PrivacyIntroScreen: View {
                         Text("隐私与 AI 处理说明")
                             .font(.system(size: 34, weight: .bold))
 
-                        Text("先把哪些内容会留在本地、哪些内容会发给 AI 服务说清楚。")
+                        Text("先把哪些内容会留在本地、哪些内容会同步到 iCloud、哪些内容会发给 AI 服务说清楚。")
                             .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 14) {
                         PrivacyPoint(
-                            title: "默认只保存在本地",
-                            detail: "你输入的文字记录、语音、转写结果、整理结果和拆分结果默认保存在本机。我们不会把完整记录上传到服务器做长期内容存储。"
+                            title: "本地优先，并使用你的 iCloud 私有同步",
+                            detail: "文字记录、转写结果、整理结果、拆分结构和标签会先保存在本机，并可通过你的 Apple iCloud 私有数据库同步。Life Narrator 服务器不会保存完整记录正文。"
+                        )
+
+                        PrivacyPoint(
+                            title: "原始录音仍以本机保存为主",
+                            detail: "当前版本不承诺跨设备恢复原始录音文件。语音记录的文字、转写和整理内容可随记录数据同步。"
                         )
 
                         PrivacyPoint(

@@ -80,7 +80,7 @@ Status: Submission preflight checklist
 这些不是新功能，但属于提交前容易漏掉的门面和运营准备项：
 
 - [ ] 用 Release 配置或 Archive 安装包做一次完整视觉巡检，确认底部只有 `记录 / 时间线 / AI 回顾`，不出现 `Dev`。
-- [ ] App Store Connect 的 `App 隐私` 需要和当前真实数据流一致：本地记录默认本地保存；AI/转写/整理/回顾会通过后台代理处理必要内容；admin/usage 只做测试运营统计。
+- [ ] App Store Connect 的 `App 隐私` 需要和当前真实数据流一致：记录以本机保存为主，并可通过用户自己的 Apple iCloud 私有数据库同步核心文字与结构化数据；AI/转写/整理/回顾会通过后台代理处理必要内容；admin/usage 只做测试运营统计。
 - [ ] 技术支持 URL、隐私政策 URL 都需要公网可访问，不能只是在本地或 GitHub 私有仓库里。
 - [ ] 选定一个最终 archive build 后重新跑 validation；此前图标和截图问题已经出现过，不能只依赖 Xcode Debug build。
 - [ ] 后台生产环境至少确认健康检查、邀请码/注册、usage 计数、日额度限制和超额提示。
