@@ -14,12 +14,14 @@ struct RecordFeedScreen: View {
     @FocusState private var isInputFieldFocused: Bool
     private let context: NSManagedObjectContext
     private let aiService: AIService
+    private let onShowProductGuide: (() -> Void)?
     private let calendar = Calendar.current
     private let recordListBottomID = "record-list-bottom-anchor"
 
-    init(context: NSManagedObjectContext, aiService: AIService) {
+    init(context: NSManagedObjectContext, aiService: AIService, onShowProductGuide: (() -> Void)? = nil) {
         self.context = context
         self.aiService = aiService
+        self.onShowProductGuide = onShowProductGuide
         _viewModel = StateObject(wrappedValue: CaptureFeedViewModel(context: context, aiService: aiService))
     }
 
@@ -66,7 +68,10 @@ struct RecordFeedScreen: View {
                 )
             }
             .sheet(isPresented: $isSettingsPresented) {
-                AppSettingsScreen()
+                AppSettingsScreen {
+                    isSettingsPresented = false
+                    onShowProductGuide?()
+                }
             }
             .fullScreenCover(isPresented: assistDraftEditorBinding) {
                 if let payload = viewModel.assistDraftPayload {
@@ -217,6 +222,7 @@ struct RecordFeedScreen: View {
             }
         }
         .padding(.top, 4)
+        .padding(.bottom, 8)
         .background(Color(.systemGroupedBackground))
     }
 

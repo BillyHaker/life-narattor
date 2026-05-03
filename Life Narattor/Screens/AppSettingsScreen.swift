@@ -6,6 +6,11 @@ struct AppSettingsScreen: View {
 
     private let privacyURL = URL(string: "https://billyha.github.io/life-narattor/privacy/")!
     private let supportURL = URL(string: "https://billyha.github.io/life-narattor/support/")!
+    let onShowProductGuide: (() -> Void)?
+
+    init(onShowProductGuide: (() -> Void)? = nil) {
+        self.onShowProductGuide = onShowProductGuide
+    }
 
     var body: some View {
         NavigationStack {
@@ -40,6 +45,12 @@ struct AppSettingsScreen: View {
                     }
 
                     SettingsListCard(title: "帮助与关于") {
+                        if let onShowProductGuide {
+                            SettingsActionRow(title: "查看入门教程", systemImage: "sparkles.rectangle.stack", value: "3 分钟") {
+                                dismiss()
+                                onShowProductGuide()
+                            }
+                        }
                         NavigationLink {
                             FeedbackScreen()
                         } label: {

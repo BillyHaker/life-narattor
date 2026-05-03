@@ -14,8 +14,8 @@ struct ContentView: View {
 
     @Environment(\.managedObjectContext) private var context
     @AppStorage("app.hasSeenPrivacyIntro") private var hasSeenPrivacyIntro = false
+    @AppStorage("app.hasSeenProductGuide") private var hasSeenProductGuide = false
     @AppStorage("privacy.hasConsentedToAIProcessing") private var hasConsentedToAIProcessing = false
-    @StateObject private var featureFlags = FeatureFlags.shared
     @State private var selectedTab: RootTab = .record
 
     private let aiService: AIService
@@ -27,36 +27,23 @@ struct ContentView: View {
     var body: some View {
         Group {
             if hasSeenPrivacyIntro && hasConsentedToAIProcessing {
-                TabView(selection: $selectedTab) {
-                    RecordFeedScreen(context: context, aiService: aiService)
-                        .tabItem {
-                            Label("记录", systemImage: "square.and.pencil")
-                        }
-                        .tag(RootTab.record)
-
-                    TimelineScreen(aiService: aiService, selectedTab: $selectedTab)
-                        .tabItem {
-                            Label("时间线", systemImage: "clock")
-                        }
-                        .tag(RootTab.timeline)
-
-                    NavigationStack {
-                        SearchScreen()
-                    }
-                        .tabItem {
-                            Label("AI回顾", systemImage: "sparkles")
-                        }
-                        .tag(RootTab.review)
-
-#if DEBUG
-                    if featureFlags.isDeveloperMenuVisible {
-                        DevToolsRootView(storage: CoreDataDebugStorageProvider(context: context), context: context, aiService: aiService)
-                            .tabItem {
-                                Label("Dev", systemImage: "hammer")
+                if hasSeenProductGuide {
+                    RootShellView(
+                        selectedTab: $selectedTab,
+                        aiService: aiService,
+                        context: context,
+                        onShowProductGuide: {
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                hasSeenProductGuide = false
                             }
-                            .tag(RootTab.dev)
+                        }
+                    )
+                } else {
+                    OnboardingGuideScreen {
+                        withAnimation(.easeInOut(duration: 0.24)) {
+                            hasSeenProductGuide = true
+                        }
                     }
-#endif
                 }
             } else {
                 PrivacyIntroScreen {
@@ -67,6 +54,122 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+private struct RootShellView: View {
+    @Binding var selectedTab: RootTab
+    let aiService: AIService
+    let context: NSManagedObjectContext
+    let onShowProductGuide: () -> Void
+    @State private var loadedTabs: Set<RootTab> = [.record]
+
+    var body: some View {
+        ZStack {
+            if loadedTabs.contains(.record) {
+                RecordFeedScreen(
+                    context: context,
+                    aiService: aiService,
+                    onShowProductGuide: onShowProductGuide
+                )
+                .rootTabContent(.record, selectedTab: selectedTab)
+            }
+
+            if loadedTabs.contains(.timeline) {
+                TimelineScreen(aiService: aiService, selectedTab: $selectedTab)
+                    .rootTabContent(.timeline, selectedTab: selectedTab)
+            }
+
+            if loadedTabs.contains(.review) {
+                NavigationStack {
+                    SearchScreen()
+                }
+                .rootTabContent(.review, selectedTab: selectedTab)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            RootTabBar(selectedTab: $selectedTab)
+        }
+        .onChange(of: selectedTab) { _, tab in
+            loadedTabs.insert(tab)
+        }
+    }
+}
+
+private struct RootTabBar: View {
+    @Binding var selectedTab: RootTab
+
+    private let tabs: [(tab: RootTab, title: String, systemImage: String)] = [
+        (.record, "记录", "square.and.pencil"),
+        (.timeline, "时间线", "clock.fill"),
+        (.review, "AI 回顾", "sparkles")
+    ]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(tabs, id: \.tab) { item in
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        selectedTab = item.tab
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: item.systemImage)
+                            .font(.system(size: 24, weight: .semibold))
+                            .symbolRenderingMode(.hierarchical)
+                        Text(item.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(selectedTab == item.tab ? Color.blue : Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 58)
+                    .background {
+                        if selectedTab == item.tab {
+                            Capsule(style: .continuous)
+                                .fill(Color.blue.opacity(0.11))
+                        }
+                    }
+                    .contentShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: 620)
+        .background {
+            Capsule(style: .continuous)
+                .fill(.regularMaterial)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.08), radius: 22, x: 0, y: 10)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(.systemGroupedBackground).opacity(0),
+                    Color(.systemGroupedBackground).opacity(0.92)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+    }
+}
+
+private extension View {
+    func rootTabContent(_ tab: RootTab, selectedTab: RootTab) -> some View {
+        opacity(selectedTab == tab ? 1 : 0)
+            .allowsHitTesting(selectedTab == tab)
+            .accessibilityHidden(selectedTab != tab)
     }
 }
 
