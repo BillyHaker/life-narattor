@@ -8,27 +8,39 @@ struct OnboardingGuideScreen: View {
     private let pages: [OnboardingGuidePage] = [
         OnboardingGuidePage(
             eyebrow: "第一步",
-            title: "先随手记一句",
-            detail: "普通记录可以很短，像给自己留一张便签。说不清的时候，切到助手，让它陪你问几句，再整理成一条记录。",
-            systemImage: "square.and.pencil",
+            title: "先记一句就好",
+            detail: "不用写完整日记。把刚发生的事、一个想法、一个情绪留住，短一点也很好。",
+            systemImage: "text.bubble",
             accent: .blue,
-            points: ["记录当下发生的事或想法", "助手对话后可整理成记录", "确认后再写入，不会强迫你保存"]
+            actionTitle: "试着记下当下",
+            points: ["可以很短，也可以很碎", "文字和语音都可以", "先留下，之后再整理"]
         ),
         OnboardingGuidePage(
             eyebrow: "第二步",
-            title: "时间线会慢慢长出来",
-            detail: "不用每天写完整日记。零散片段会按昨天、7 天、30 天被整理成故事线，帮你看见最近的节奏。",
-            systemImage: "clock.arrow.circlepath",
-            accent: .green,
-            points: ["先看每天留下的节点", "AI 会整理已结束的时间段", "回看不是打分，只是多一个参照"]
+            title: "说不清，就找助手",
+            detail: "当你只有一个模糊念头，助手可以陪你问几句，再整理成一条记录草稿。确认后才会保存。",
+            systemImage: "bubble.left.and.bubble.right",
+            accent: .teal,
+            actionTitle: "从对话变成记录",
+            points: ["适合没想清楚的时候", "整理前可以继续追问", "草稿可编辑，确认后写入"]
         ),
         OnboardingGuidePage(
             eyebrow: "第三步",
-            title: "直接问 AI 回顾",
-            detail: "当你想知道重复出现的状态、某个变化从什么时候开始，或者哪条线索值得继续看，可以直接问。",
+            title: "时间线会慢慢长出来",
+            detail: "你不需要每天总结。昨天、7 天、30 天的故事线，会从已经留下的片段里沉淀出来。",
+            systemImage: "clock.arrow.circlepath",
+            accent: .green,
+            actionTitle: "回看最近的节奏",
+            points: ["今天先看节点", "结束后的时间段再总结", "回看不是打分，只是参考"]
+        ),
+        OnboardingGuidePage(
+            eyebrow: "第四步",
+            title: "想不明白，就直接问",
+            detail: "AI 回顾适合问：最近反复卡住的是什么？某个变化从什么时候开始？哪条线索值得继续看？",
             systemImage: "sparkles",
             accent: .purple,
-            points: ["从问题开始，也可以从线索开始", "结果会尽量带事实和依据", "适合寻找普通记录里不明显的联系"]
+            actionTitle: "问出隐藏的联系",
+            points: ["可以从问题开始", "也可以从线索开始", "结果会尽量带事实依据"]
         )
     ]
 
@@ -36,7 +48,7 @@ struct OnboardingGuideScreen: View {
         ZStack {
             background
 
-            VStack(spacing: 22) {
+            VStack(spacing: 18) {
                 header
 
                 TabView(selection: $pageIndex) {
@@ -50,8 +62,8 @@ struct OnboardingGuideScreen: View {
 
                 footer
             }
-            .padding(.top, 28)
-            .padding(.bottom, 26)
+            .padding(.top, 26)
+            .padding(.bottom, 24)
         }
     }
 
@@ -60,7 +72,7 @@ struct OnboardingGuideScreen: View {
             colors: [
                 Color(.systemGroupedBackground),
                 Color(.systemBackground),
-                Color.blue.opacity(0.07)
+                Color.blue.opacity(0.06)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -70,10 +82,10 @@ struct OnboardingGuideScreen: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Text("欢迎来到 Life Narrator")
+            Text("开始使用 Life Narrator")
                 .font(.system(size: 28, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("不用写得完整。先留下片段，回看的事交给之后的你和 AI。")
+            Text("先留下片段。整理、回看和发现线索，可以交给之后的你和 AI。")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -82,12 +94,12 @@ struct OnboardingGuideScreen: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 13) {
             HStack(spacing: 7) {
                 ForEach(pages.indices, id: \.self) { index in
                     Capsule()
-                        .fill(index == pageIndex ? Color.blue : Color(.systemGray4))
-                        .frame(width: index == pageIndex ? 22 : 7, height: 7)
+                        .fill(index == pageIndex ? pages[pageIndex].accent : Color(.systemGray4))
+                        .frame(width: index == pageIndex ? 24 : 7, height: 7)
                         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: pageIndex)
                 }
             }
@@ -119,14 +131,14 @@ struct OnboardingGuideScreen: View {
                         }
                     }
                 } label: {
-                    Text(pageIndex == pages.count - 1 ? "开始使用" : "继续")
+                    Text(pageIndex == pages.count - 1 ? "开始记录" : "继续")
                         .font(.system(size: 17, weight: .bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .background(Color.blue)
+                .background(pages[pageIndex].accent)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .padding(.horizontal, 22)
@@ -136,7 +148,7 @@ struct OnboardingGuideScreen: View {
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.secondary)
-            .padding(.top, 2)
+            .padding(.top, 1)
         }
     }
 }
@@ -145,7 +157,7 @@ private struct OnboardingGuideCard: View {
     let page: OnboardingGuidePage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 20) {
             icon
 
             VStack(alignment: .leading, spacing: 10) {
@@ -163,7 +175,9 @@ private struct OnboardingGuideCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 12) {
+            actionPill
+
+            VStack(spacing: 10) {
                 ForEach(page.points, id: \.self) { point in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "checkmark.circle.fill")
@@ -175,7 +189,7 @@ private struct OnboardingGuideCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
-                    .padding(14)
+                    .padding(13)
                     .background(page.accent.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
@@ -204,6 +218,21 @@ private struct OnboardingGuideCard: View {
                 .foregroundStyle(page.accent)
         }
     }
+
+    private var actionPill: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.right.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+            Text(page.actionTitle)
+                .font(.system(size: 16, weight: .bold))
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(page.accent)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
+        .background(page.accent.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
 }
 
 private struct OnboardingGuidePage {
@@ -212,6 +241,7 @@ private struct OnboardingGuidePage {
     let detail: String
     let systemImage: String
     let accent: Color
+    let actionTitle: String
     let points: [String]
 }
 

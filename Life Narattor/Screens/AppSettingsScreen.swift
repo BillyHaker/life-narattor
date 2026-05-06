@@ -55,7 +55,7 @@ struct AppSettingsScreen: View {
 
                     SettingsListCard(title: "帮助与关于") {
                         if let onShowProductGuide {
-                            SettingsActionRow(title: "查看入门教程", systemImage: "sparkles.rectangle.stack", value: "3 分钟") {
+                            SettingsActionRow(title: "重新看使用引导", systemImage: "sparkles.rectangle.stack", value: "4 步") {
                                 dismiss()
                                 onShowProductGuide()
                             }

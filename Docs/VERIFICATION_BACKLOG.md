@@ -384,3 +384,11 @@ pending-count: 38
 - added: 2026-05-03
 - status: pending
 - notes: 验证路径为确认 Apple Developer/Xcode 已启用 iCloud + CloudKit container `iCloud.com.jintaoha.Life-Narattor` -> 安装签名包到已登录 iCloud 的真机 A -> 创建文字和语音记录并完成整理/拆分 -> 等待 CloudKit 同步 -> 删除重装或在真机 B 同 Apple ID 安装 -> 确认记录、转写、整理结果、拆分片段、显性/隐性标签恢复。另在未登录 iCloud 状态下打开设置页，确认提示为 `未检测到可用 iCloud`。
+
+### VRF-041
+- feature: 四步初始使用引导
+- description: 首次完成隐私与 AI 处理同意后，应出现四步产品引导；用户可以跳过，也可以逐步完成并通过 `开始记录` 进入记录页；设置页应能重新打开该引导。
+- type: human-visual
+- added: 2026-05-06
+- status: pending
+- notes: 验证路径为清空或重置 `app.hasSeenProductGuide` -> 启动 App -> 完成隐私同意 -> 检查四页文案与按钮；点击 `跳过，直接进入` 和最后一页 `开始记录` 都应进入记录页。再进入 设置 -> `重新看使用引导`，确认可以复看。小屏设备需确认卡片文字和底部按钮不重叠。
