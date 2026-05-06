@@ -61,6 +61,7 @@ struct CaptureDetailSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingFeedback = false
     @State private var isDeleting = false
+    @AppStorage("app.hasSeenAtomSplitHint") private var hasSeenAtomSplitHint = false
     @Environment(\.dismiss) private var dismiss
 
     private var atomStore: AtomTagStore { AtomTagStore(context: context) }
@@ -347,7 +348,13 @@ struct CaptureDetailSheet: View {
 
     private var atomsView: some View {
         VStack(alignment: .leading, spacing: 12) {
-
+            if !hasSeenAtomSplitHint {
+                AtomSplitHintCard {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hasSeenAtomSplitHint = true
+                    }
+                }
+            }
 
             if !recordUnits.isEmpty {
                 assistRecordUnitsView
@@ -1020,6 +1027,83 @@ struct RecordUnitDraftRowView: View {
         .padding(14)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct AtomSplitHintCard: View {
+    let onDismiss: () -> Void
+
+    private let examples = [
+        "开会时感到紧张",
+        "节奏问题影响状态",
+        "散步后缓过来"
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.blue)
+                    .frame(width: 38, height: 38)
+                    .background(Color.blue.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("拆分会怎么帮你？")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text("一条记录会被整理成几个更小的片段。之后时间线和 AI 回顾，会用这些片段找线索。")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭拆分说明")
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("例如：早上开会被节奏问题影响，后来散步时缓过来了。")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(examples, id: \.self) { example in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.blue)
+                        Text(example)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(13)
+            .background(Color(.systemBackground).opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Button("知道了", action: onDismiss)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.blue)
+        }
+        .padding(15)
+        .background(Color.blue.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.blue.opacity(0.12), lineWidth: 1)
+        }
     }
 }
 
