@@ -473,7 +473,7 @@ struct RecordFeedScreen: View {
         if item.processingState == .atomsReady || item.processingState == .tagsSuggested {
             return "已整理成 \(item.atomsCount) 个片段"
         }
-        return "已接住"
+        return "已记录"
     }
 
     private var autoSplitProgressView: some View {
