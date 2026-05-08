@@ -121,7 +121,7 @@ struct TimelineScreen: View {
                 summaryTextBlock(currentSummaryDisplay)
             }
 
-            if let snapshot = currentSnapshot {
+            if let snapshot = currentSnapshot, snapshot.activeDayCount > 0 || snapshot.totalRecordCount > 0 {
                 HStack(spacing: 8) {
                     snapshotPill("\(snapshot.activeDayCount) 天")
                     snapshotPill("\(snapshot.totalRecordCount) 条材料")
@@ -206,7 +206,7 @@ struct TimelineScreen: View {
     private var emptyStateTitle: String {
         switch selectedScope {
         case .today:
-            return "今天还很安静"
+            return "昨天还没有留下片段"
         case .week:
             return "最近 7 天还没有留下片段"
         case .month:
@@ -219,7 +219,7 @@ struct TimelineScreen: View {
     private var emptyStateBody: String {
         switch selectedScope {
         case .today:
-            return "今天先把片段放进来，昨天的故事线仍然会留在上面给你参考。"
+            return "今天先把片段放进来，明天这里会留下更稳定的回看。"
         case .week:
             return "不用补满 7 天，从现在记一句就够了。"
         case .month:
@@ -289,7 +289,7 @@ struct TimelineScreen: View {
         }
         switch currentSnapshotKind {
         case .yesterday:
-            return "昨天之后，这里会留下一条更完整的回看线索。今天先把片段放进来。"
+            return "昨天的故事线还在等待整理，先看看昨天留下了什么。"
         case .last7Days:
             return "过去 7 天的故事线还在等待整理，先按日期看看最近留下了什么。"
         case .last30Days:
@@ -548,23 +548,20 @@ struct TimelineScreen: View {
     private func dateInterval(for scope: TimelineScope) -> DateInterval? {
         let calendar = Calendar.current
         let now = Date()
+        let todayStart = calendar.startOfDay(for: now)
         switch scope {
         case .today:
-            let start = calendar.startOfDay(for: now)
-            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? now
-            return DateInterval(start: start, end: end)
+            let start = calendar.date(byAdding: .day, value: -1, to: todayStart) ?? todayStart
+            return DateInterval(start: start, end: todayStart)
         case .week:
-            let end = now
-            let start = calendar.date(byAdding: .day, value: -7, to: end) ?? end
-            return DateInterval(start: start, end: end)
+            let start = calendar.date(byAdding: .day, value: -7, to: todayStart) ?? todayStart
+            return DateInterval(start: start, end: todayStart)
         case .month:
-            let end = now
-            let start = calendar.date(byAdding: .day, value: -30, to: end) ?? end
-            return DateInterval(start: start, end: end)
+            let start = calendar.date(byAdding: .day, value: -30, to: todayStart) ?? todayStart
+            return DateInterval(start: start, end: todayStart)
         case .custom:
-            let end = now
-            let start = calendar.date(byAdding: .day, value: -30, to: end) ?? end
-            return DateInterval(start: start, end: end)
+            let start = calendar.date(byAdding: .day, value: -30, to: todayStart) ?? todayStart
+            return DateInterval(start: start, end: todayStart)
         }
     }
 
