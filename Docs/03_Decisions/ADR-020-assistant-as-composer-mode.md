@@ -4,7 +4,7 @@
 - Date: 2026-05-08
 - Owner: Codex
 - Scope: iOS/Record UX
-- Status: Accepted
+- Status: Superseded
 - Related session: [2026-05-08 Session 004](../04_Sessions/2026-05-08_session-004.md)
 - Related change: [Change 239](../05_Changes/Change-239-record-composer-bottom-bar.md)
 
@@ -26,6 +26,9 @@ Treat Assistant as an inline composer mode. The root tab bar remains the only bo
 - Keeps ordinary capture as the primary path.
 - Makes Assistant feel like a way to handle the current input, not a separate destination competing with Record.
 - Preserves existing routing through `CaptureInputMode` and `FeedSurface` without changing persistence or AI flows.
+
+## Superseded By
+- [ADR-021 - Preserve Layered Capture Controls](ADR-021-preserve-layered-capture-controls.md)
 
 ## Consequences
 - Users switch Assistant from inside the composer instead of a full segmented switch.

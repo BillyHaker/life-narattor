@@ -408,3 +408,11 @@ pending-count: 38
 - added: 2026-05-08
 - status: pending
 - notes: 验证路径为启动 App -> 记录页 -> 检查底部只有输入栏和三栏主 Tab Bar；点击 `助手` 按钮，确认助手会话出现并可发送；再次点击 `助手` 切回记录，确认筛选和记录列表恢复；弹出键盘、开始录音、切换根 Tab，确认底部控件不重叠。自动验证：Debug simulator build passed；xcodebuild test 因 CoreSimulatorService 不可用未运行。
+
+### VRF-044
+- feature: 恢复记录页三层底部控件并放大主导航
+- description: 记录页底部应显示三层结构：`记录 / 助手` 分段切换、`麦克风 / 输入栏 / 发送` 输入行、以及更宽更大的 `记录 / 时间线 / AI 回顾` 主导航。输入栏里不应再出现内联 `助手` 小按钮。
+- type: human-visual
+- added: 2026-05-08
+- status: pending
+- notes: 验证路径为启动 App -> 记录页 -> 检查三层结构；点击 `助手` 进入助手会话，点击 `记录` 返回记录列表；弹出键盘和开始录音时检查三层控件不重叠。重点在 Pro Max 上确认主导航胶囊接近占满屏幕宽度且不显小。

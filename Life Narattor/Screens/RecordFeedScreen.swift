@@ -199,6 +199,7 @@ struct RecordFeedScreen: View {
 
     private var bottomInsetView: some View {
         VStack(spacing: 8) {
+            surfaceSwitcher
             if viewModel.isRecording, let startedAt = viewModel.recordingStartedAt {
                 RecordingChipView(
                     startedAt: startedAt,
@@ -293,6 +294,16 @@ struct RecordFeedScreen: View {
             .buttonStyle(.plain)
             .accessibilityLabel("设置")
         }
+        .padding(.horizontal, 16)
+    }
+
+    private var surfaceSwitcher: some View {
+        Picker("界面", selection: $selectedSurface) {
+            ForEach(FeedSurface.allCases) { surface in
+                Text(surface.title).tag(surface)
+            }
+        }
+        .pickerStyle(.segmented)
         .padding(.horizontal, 16)
     }
 

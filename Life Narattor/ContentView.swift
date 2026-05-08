@@ -137,7 +137,7 @@ private struct RootTabBar: View {
             }
         }
         .padding(9)
-        .frame(maxWidth: 620)
+        .frame(maxWidth: .infinity)
         .background {
             Capsule(style: .continuous)
                 .fill(.regularMaterial)
@@ -147,7 +147,7 @@ private struct RootTabBar: View {
                 }
                 .shadow(color: Color.black.opacity(0.08), radius: 22, x: 0, y: 10)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
