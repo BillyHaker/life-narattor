@@ -8,39 +8,33 @@ struct OnboardingGuideScreen: View {
     private let pages: [OnboardingGuidePage] = [
         OnboardingGuidePage(
             eyebrow: "第一步",
-            title: "先记一句就好",
-            detail: "不用写完整日记。把刚发生的事、一个想法、一个情绪留住，短一点也很好。",
-            systemImage: "text.bubble",
+            title: "不用写完整日记",
+            detail: "Life Narrator 不是来催你认真写作的。先把这一刻留下来：一句话、一段语音、一个模糊感受，都可以。",
+            systemImage: "quote.bubble.fill",
             accent: .blue,
-            actionTitle: "试着记下当下",
-            points: ["可以很短，也可以很碎", "文字和语音都可以", "先留下，之后再整理"]
+            guideTitle: "你只需要做一件事",
+            guideText: "在记录页写下或说出刚发生的事。它可以很短，整理可以之后再说。",
+            example: "例如：今天开会被打断后有点烦。"
         ),
         OnboardingGuidePage(
             eyebrow: "第二步",
-            title: "说不清，就找助手",
-            detail: "当你只有一个模糊念头，助手可以陪你问几句，再整理成一条记录草稿。确认后才会保存。",
-            systemImage: "bubble.left.and.bubble.right",
+            title: "清楚就直接记，说不清就找助手",
+            detail: "有些事一开始只是一团感觉。你可以先和助手聊几句，等它整理成草稿后，再决定是否写入记录。",
+            systemImage: "bubble.left.and.bubble.right.fill",
             accent: .teal,
-            actionTitle: "从对话变成记录",
-            points: ["适合没想清楚的时候", "整理前可以继续追问", "草稿可编辑，确认后写入"]
+            guideTitle: "两种入口，目的相同",
+            guideText: "直接记录适合已经想清楚的片段；助手适合还没组织好的念头。确认前都不会正式写入。",
+            example: "例如：我今天为什么一直提不起劲？"
         ),
         OnboardingGuidePage(
             eyebrow: "第三步",
-            title: "时间线会慢慢长出来",
-            detail: "你不需要每天总结。昨天、7 天、30 天的故事线，会从已经留下的片段里沉淀出来。",
-            systemImage: "clock.arrow.circlepath",
-            accent: .green,
-            actionTitle: "回看最近的节奏",
-            points: ["今天先看节点", "结束后的时间段再总结", "回看不是打分，只是参考"]
-        ),
-        OnboardingGuidePage(
-            eyebrow: "第四步",
-            title: "想不明白，就直接问",
-            detail: "AI 回顾适合问：最近反复卡住的是什么？某个变化从什么时候开始？哪条线索值得继续看？",
+            title: "回看时，再让 AI 帮你找联系",
+            detail: "记录多起来后，时间线会把已经结束的时间段整理成故事线。AI 回顾则适合追问变化、重复模式和隐藏线索。",
             systemImage: "sparkles",
             accent: .purple,
-            actionTitle: "问出隐藏的联系",
-            points: ["可以从问题开始", "也可以从线索开始", "结果会尽量带事实依据"]
+            guideTitle: "AI 只在你需要回看时介入",
+            guideText: "它会尽量基于事实回答：发生了什么、哪些事反复出现、哪条线索值得继续看。",
+            example: "例如：最近反复卡住的地方是什么？"
         )
     ]
 
@@ -82,13 +76,14 @@ struct OnboardingGuideScreen: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Text("开始使用 Life Narrator")
-                .font(.system(size: 28, weight: .bold))
+            Text("先轻轻记下来")
+                .font(.system(size: 29, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("先留下片段。整理、回看和发现线索，可以交给之后的你和 AI。")
+            Text("不用一次想清楚。这个应用先帮你接住片段，之后再帮你回看它们之间的联系。")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .lineSpacing(2)
                 .padding(.horizontal, 34)
         }
     }
@@ -131,7 +126,7 @@ struct OnboardingGuideScreen: View {
                         }
                     }
                 } label: {
-                    Text(pageIndex == pages.count - 1 ? "开始记录" : "继续")
+                    Text(pageIndex == pages.count - 1 ? "开始记一句" : "继续")
                         .font(.system(size: 17, weight: .bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
@@ -143,7 +138,7 @@ struct OnboardingGuideScreen: View {
             }
             .padding(.horizontal, 22)
 
-            Button("跳过，直接进入") {
+            Button("先进入看看") {
                 onFinish()
             }
             .font(.system(size: 14, weight: .semibold))
@@ -157,10 +152,10 @@ private struct OnboardingGuideCard: View {
     let page: OnboardingGuidePage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 22) {
             icon
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 11) {
                 Text(page.eyebrow)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(page.accent)
@@ -175,25 +170,8 @@ private struct OnboardingGuideCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            actionPill
-
-            VStack(spacing: 10) {
-                ForEach(page.points, id: \.self) { point in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(page.accent)
-                        Text(point)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(13)
-                    .background(page.accent.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-            }
+            guideBlock
+            exampleBlock
 
             Spacer(minLength: 0)
         }
@@ -219,18 +197,38 @@ private struct OnboardingGuideCard: View {
         }
     }
 
-    private var actionPill: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.right.circle.fill")
-                .font(.system(size: 18, weight: .semibold))
-            Text(page.actionTitle)
+    private var guideBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(page.guideTitle)
                 .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.primary)
+            Text(page.guideText)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(page.accent.opacity(0.09))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var exampleBlock: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "arrow.turn.down.right")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(page.accent)
+                .padding(.top, 2)
+            Text(page.example)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(page.accent)
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
-        .background(page.accent.opacity(0.10))
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
@@ -241,8 +239,9 @@ private struct OnboardingGuidePage {
     let detail: String
     let systemImage: String
     let accent: Color
-    let actionTitle: String
-    let points: [String]
+    let guideTitle: String
+    let guideText: String
+    let example: String
 }
 
 #Preview {
