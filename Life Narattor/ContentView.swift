@@ -123,7 +123,7 @@ private struct RootTabBar: View {
                     }
                     .foregroundStyle(selectedTab == item.tab ? Color.blue : Color.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 66)
+                    .frame(height: 60)
                     .background {
                         if selectedTab == item.tab {
                             Capsule(style: .continuous)
@@ -136,7 +136,7 @@ private struct RootTabBar: View {
                 .accessibilityLabel(item.title)
             }
         }
-        .padding(9)
+        .padding(7)
         .frame(maxWidth: .infinity)
         .background {
             Capsule(style: .continuous)
@@ -148,8 +148,8 @@ private struct RootTabBar: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 22, x: 0, y: 10)
         }
         .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
         .frame(maxWidth: .infinity)
         .background(
             LinearGradient(

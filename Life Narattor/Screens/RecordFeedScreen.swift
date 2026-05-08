@@ -17,7 +17,7 @@ struct RecordFeedScreen: View {
     private let onShowProductGuide: (() -> Void)?
     private let calendar = Calendar.current
     private let recordListBottomID = "record-list-bottom-anchor"
-    private let rootTabBarAvoidanceHeight: CGFloat = 112
+    private let rootTabBarAvoidanceHeight: CGFloat = 96
 
     init(context: NSManagedObjectContext, aiService: AIService, onShowProductGuide: (() -> Void)? = nil) {
         self.context = context
