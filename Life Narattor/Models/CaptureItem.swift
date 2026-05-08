@@ -22,6 +22,10 @@ struct CaptureItem: Identifiable {
     let sourceThreadID: UUID?
     let revisionCount: Int
 
+    var isTranscriptionInProgress: Bool {
+        inputType == .voice && isTranscriptionActive && transcriptionStatus == .pending
+    }
+
     init(
         id: UUID,
         createdAt: Date,

@@ -22,10 +22,13 @@ This server keeps upstream AI provider keys off-device and enforces basic protec
 
 ### Doubao ASR (default transcription provider)
 - `DOUBAO_ASR_URL` (required, set from Volcengine endpoint)
-- `DOUBAO_APP_ID` (required)
-- `DOUBAO_ACCESS_TOKEN` (required)
+- `DOUBAO_API_KEY` (preferred for newer Volcengine/Doubao console credentials)
+- `DOUBAO_APP_ID` + `DOUBAO_ACCESS_TOKEN` (legacy credential pair; used when `DOUBAO_API_KEY` is empty)
 - `DOUBAO_RESOURCE_ID` (optional, default `volc.bigasr.auc_turbo`)
 - `DOUBAO_MODEL_NAME` (optional, default `bigmodel`)
+- `DOUBAO_USER_ID` (optional, default `life-narrator`; sent as the ASR user uid)
+
+When `TRANSCRIBE_PROVIDER=doubao`, the server will try Doubao first. If Doubao returns a provider configuration/authentication error and `OPENAI_API_KEY` is configured, the server falls back to OpenAI audio transcription so the production app does not become fully blocked by a Doubao credential issue.
 
 ### Model routing
 - `MODEL_QUICK` — QuickAck model (default `gpt-4o-mini`)

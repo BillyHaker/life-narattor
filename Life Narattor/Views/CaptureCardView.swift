@@ -18,16 +18,16 @@ struct CaptureCardView: View {
             if item.inputType == .voice, let transcriptionStatus = item.transcriptionStatus {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(item.isTranscriptionActive ? "正在转写…" : transcriptionStatus.displayText)
+                        Text(item.isTranscriptionInProgress ? "正在转写…" : transcriptionStatus.displayText)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        if !item.isTranscriptionActive && transcriptionStatus == .failed {
+                        if !item.isTranscriptionInProgress && transcriptionStatus == .failed {
                             Button("重试", action: onRetryTranscription)
                                 .font(.footnote.weight(.semibold))
                         }
                     }
 
-                    if !item.isTranscriptionActive,
+                    if !item.isTranscriptionInProgress,
                        (transcriptionStatus == .failed || transcriptionStatus == .offline),
                        let reason = item.transcriptionErrorReason,
                        !reason.isEmpty {

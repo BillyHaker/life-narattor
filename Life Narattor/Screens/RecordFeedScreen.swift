@@ -463,7 +463,7 @@ struct RecordFeedScreen: View {
         if item.revisionCount > 0 {
             return "已修订 \(item.revisionCount) 次"
         }
-        if item.inputType == .voice, item.isTranscriptionActive {
+        if item.isTranscriptionInProgress {
             return "正在转写…"
         }
         if item.inputType == .voice, let transcriptionStatus = item.transcriptionStatus {
@@ -754,7 +754,7 @@ private struct CompactCaptureRow: View {
                     .background(Color(.systemGray6))
                     .clipShape(Capsule())
 
-                if !item.isTranscriptionActive,
+                if !item.isTranscriptionInProgress,
                    (item.transcriptionStatus == .failed || item.transcriptionStatus == .offline) && item.inputType == .voice {
                     Button("重试", action: onRetryTranscription)
                         .font(.caption2.weight(.semibold))

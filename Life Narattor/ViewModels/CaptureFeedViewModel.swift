@@ -46,6 +46,7 @@ final class CaptureFeedViewModel: ObservableObject {
     private var notificationObservers: [NSObjectProtocol] = []
     private var didActivateObservers: Bool = false
     private var transcriptionTasks: [UUID: Task<Void, Never>] = [:]
+    private var transcriptionTaskTokens: [UUID: UUID] = [:]
     private var assistGenerationTask: Task<Void, Never>?
     private let assistThreadMetaType = "assist_thread_meta"
     private let assistThreadMessageType = "assist_thread_message"
@@ -1740,6 +1741,8 @@ final class CaptureFeedViewModel: ObservableObject {
 
     private func enqueueTranscription(captureID: UUID, shouldResetToPending: Bool) {
         transcriptionTasks[captureID]?.cancel()
+        let taskToken = UUID()
+        transcriptionTaskTokens[captureID] = taskToken
         transcriptionDebugStore.record(
             phase: "queue",
             status: "enqueued",
@@ -1748,12 +1751,23 @@ final class CaptureFeedViewModel: ObservableObject {
             message: shouldResetToPending ? "retry enqueued" : "new capture enqueued"
         )
         transcriptionTasks[captureID] = Task { [weak self] in
-            await self?.runTranscriptionQueue(captureID: captureID, shouldResetToPending: shouldResetToPending)
+            await self?.runTranscriptionQueue(
+                captureID: captureID,
+                taskToken: taskToken,
+                shouldResetToPending: shouldResetToPending
+            )
         }
     }
 
-    private func runTranscriptionQueue(captureID: UUID, shouldResetToPending: Bool) async {
-        defer { transcriptionTasks[captureID] = nil }
+    private func runTranscriptionQueue(captureID: UUID, taskToken: UUID, shouldResetToPending: Bool) async {
+        defer {
+            if transcriptionTaskTokens[captureID] == taskToken {
+                transcriptionTaskTokens[captureID] = nil
+                transcriptionTasks[captureID] = nil
+                loadCaptures()
+                postCaptureStateChanged(captureID: captureID)
+            }
+        }
         var retryAttempts = 0
 
         if shouldResetToPending, let entity = fetchCaptureEntity(captureID: captureID) {

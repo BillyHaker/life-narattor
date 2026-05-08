@@ -34,10 +34,12 @@ const config = {
     openaiAudioBase: process.env.OPENAI_AUDIO_BASE || "https://api.openai.com/v1/audio/transcriptions",
     transcribeProvider: normalizeTranscribeProvider(process.env.TRANSCRIBE_PROVIDER),
     doubaoASRURL: process.env.DOUBAO_ASR_URL,
+    doubaoAPIKey: process.env.DOUBAO_API_KEY,
     doubaoAppID: process.env.DOUBAO_APP_ID,
     doubaoAccessToken: process.env.DOUBAO_ACCESS_TOKEN,
     doubaoResourceID: process.env.DOUBAO_RESOURCE_ID || "volc.bigasr.auc_turbo",
     doubaoModelName: process.env.DOUBAO_MODEL_NAME || "bigmodel",
+    doubaoUserID: process.env.DOUBAO_USER_ID || process.env.DOUBAO_APP_ID || "life-narrator",
     modelQuick: process.env.MODEL_QUICK || "gpt-4o-mini",
     modelAssist: process.env.MODEL_ASSIST || "gpt-4o-mini",
     modelDeep: process.env.MODEL_DEEP || "gpt-4o-mini",
@@ -203,7 +205,8 @@ const server = http.createServer(async (req, res) => {
         return json(res, 404, { error: "not_found" });
     } catch (error) {
         recordRequestEvent({ userId, requestType, success: false, audioSeconds, detail: error?.message || null, estimatedTokens: requestEstimatedTokens });
-        return json(res, 500, { error: "server_error", message: error?.message });
+        const publicError = publicErrorFor(error, requestType);
+        return json(res, publicError.status, { error: publicError.code, message: publicError.message });
     }
 });
 
@@ -1238,7 +1241,15 @@ async function handleTranscribe(req) {
 
     const body = await readRaw(req, 25_000_000);
     if (config.transcribeProvider === "doubao") {
-        return transcribeWithDoubao(contentType, body);
+        try {
+            return await transcribeWithDoubao(contentType, body);
+        } catch (error) {
+            if (config.openaiKey && shouldFallbackTranscriptionToOpenAI(error)) {
+                console.warn(`Doubao transcription failed; falling back to OpenAI audio: ${error?.message || error}`);
+                return transcribeWithOpenAI(contentType, body);
+            }
+            throw error;
+        }
     }
     return transcribeWithOpenAI(contentType, body);
 }
@@ -1271,8 +1282,11 @@ async function transcribeWithOpenAI(contentType, body) {
 }
 
 async function transcribeWithDoubao(contentType, body) {
-    if (!config.doubaoASRURL || !config.doubaoAppID || !config.doubaoAccessToken) {
-        throw new Error("missing_doubao_config: require DOUBAO_ASR_URL, DOUBAO_APP_ID, DOUBAO_ACCESS_TOKEN");
+    if (!config.doubaoASRURL) {
+        throw new Error("missing_doubao_config: require DOUBAO_ASR_URL");
+    }
+    if (!config.doubaoAPIKey && (!config.doubaoAppID || !config.doubaoAccessToken)) {
+        throw new Error("missing_doubao_config: require DOUBAO_API_KEY or DOUBAO_APP_ID + DOUBAO_ACCESS_TOKEN");
     }
 
     const parsed = parseMultipartFormData(body, contentType);
@@ -1283,7 +1297,7 @@ async function transcribeWithDoubao(contentType, body) {
 
     const payload = {
         user: {
-            uid: String(config.doubaoAppID)
+            uid: String(config.doubaoUserID)
         },
         audio: {
             data: filePart.data.toString("base64")
@@ -1293,16 +1307,22 @@ async function transcribeWithDoubao(contentType, body) {
         }
     };
 
+    const headers = {
+        "Content-Type": "application/json",
+        "X-Api-Resource-Id": config.doubaoResourceID,
+        "X-Api-Request-Id": crypto.randomUUID(),
+        "X-Api-Sequence": "-1"
+    };
+    if (config.doubaoAPIKey) {
+        headers["X-Api-Key"] = String(config.doubaoAPIKey);
+    } else {
+        headers["X-Api-App-Key"] = String(config.doubaoAppID);
+        headers["X-Api-Access-Key"] = String(config.doubaoAccessToken);
+    }
+
     const response = await fetch(config.doubaoASRURL, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Api-App-Key": String(config.doubaoAppID),
-            "X-Api-Access-Key": String(config.doubaoAccessToken),
-            "X-Api-Resource-Id": config.doubaoResourceID,
-            "X-Api-Request-Id": crypto.randomUUID(),
-            "X-Api-Sequence": "-1"
-        },
+        headers,
         body: JSON.stringify(payload)
     });
 
@@ -1328,6 +1348,51 @@ async function transcribeWithDoubao(contentType, body) {
         throw new Error("invalid_doubao_transcription_response");
     }
     return { text };
+}
+
+function shouldFallbackTranscriptionToOpenAI(error) {
+    const message = String(error?.message || error || "");
+    return [
+        "missing_doubao_config",
+        "doubao_http_error_401",
+        "doubao_http_error_403",
+        "doubao_api_error_",
+        "doubao_invalid_json_response",
+        "invalid_doubao_transcription_response"
+    ].some((needle) => message.includes(needle));
+}
+
+function publicErrorFor(error, requestType) {
+    const message = String(error?.message || "unknown_error");
+    if (requestType === "transcription" && message.includes("missing_doubao_config")) {
+        return {
+            status: 503,
+            code: "transcription_provider_unavailable",
+            message: "Transcription provider is not configured."
+        };
+    }
+    if (
+        requestType === "transcription"
+        && (message.includes("doubao_http_error_401") || message.includes("doubao_http_error_403") || message.includes("requested grant not found"))
+    ) {
+        return {
+            status: 503,
+            code: "transcription_provider_auth_failed",
+            message: "Transcription provider authentication failed."
+        };
+    }
+    if (requestType === "transcription" && (message.includes("openai_audio_error_401") || message.includes("missing_openai_key"))) {
+        return {
+            status: 503,
+            code: "transcription_fallback_unavailable",
+            message: "Fallback transcription provider is not available."
+        };
+    }
+    return {
+        status: 500,
+        code: "server_error",
+        message
+    };
 }
 
 function extractTranscriptText(payload) {
