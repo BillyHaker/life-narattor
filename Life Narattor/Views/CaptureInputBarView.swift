@@ -39,34 +39,55 @@ struct CaptureInputBarView: View {
                 .pickerStyle(.segmented)
             }
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
                 Button(action: onRecord) {
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .frame(width: 36, height: 36)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(.blue)
+                        .frame(width: 44, height: 44)
                         .background(Color(.systemGray6))
                         .clipShape(Circle())
                 }
 
                 TextField(textPlaceholder, text: $text, axis: .vertical)
                     .font(.body)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
                     .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     .lineLimit(1...4)
                     .applyTextInputFocus(isTextFieldFocused, fallback: $localTextFieldFocused)
 
+                if !showsModePicker {
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.88)) {
+                            mode = mode == .assist ? .log : .assist
+                        }
+                    } label: {
+                        Label("助手", systemImage: "sparkles")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(mode == .assist ? .white : .blue)
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .background(mode == .assist ? Color.blue : Color.blue.opacity(0.09))
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(mode == .assist ? "切回记录模式" : "切换到助手模式")
+                    .accessibilityValue(mode == .assist ? "当前为助手模式" : "当前为记录模式")
+                }
+
                 Button(action: onSend) {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.system(size: 32))
                         .foregroundStyle(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .primary)
                 }
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(Color(.systemBackground))
         .overlay(

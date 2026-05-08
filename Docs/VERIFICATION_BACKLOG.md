@@ -400,3 +400,11 @@ pending-count: 38
 - added: 2026-05-06
 - status: pending
 - notes: 验证路径为清空或重置 `app.hasSeenAtomSplitHint` -> 打开任意记录详情 -> 切换到 `拆分` -> 确认说明卡出现；点击关闭后重新打开记录详情，确认说明卡不再出现。有拆分结果和无拆分结果两种状态都应检查。
+
+### VRF-043
+- feature: 记录页底部输入栏与助手模式
+- description: 记录页底部不应再显示独立的 `记录 / 助手` 分段导航；助手应作为输入栏里的轻量模式按钮出现。切换助手后，页面进入助手会话语境，placeholder 改为助手输入，并且发送内容走助手流程；切回后普通输入仍创建记录。主 Tab Bar 在 Pro Max 上应比旧版更舒展，不与输入栏争抢层级。
+- type: human-visual
+- added: 2026-05-08
+- status: pending
+- notes: 验证路径为启动 App -> 记录页 -> 检查底部只有输入栏和三栏主 Tab Bar；点击 `助手` 按钮，确认助手会话出现并可发送；再次点击 `助手` 切回记录，确认筛选和记录列表恢复；弹出键盘、开始录音、切换根 Tab，确认底部控件不重叠。自动验证：Debug simulator build passed；xcodebuild test 因 CoreSimulatorService 不可用未运行。

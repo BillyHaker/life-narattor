@@ -106,24 +106,24 @@ private struct RootTabBar: View {
     ]
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ForEach(tabs, id: \.tab) { item in
                 Button {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                         selectedTab = item.tab
                     }
                 } label: {
-                    VStack(spacing: 5) {
+                    VStack(spacing: 6) {
                         Image(systemName: item.systemImage)
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.system(size: 26, weight: .semibold))
                             .symbolRenderingMode(.hierarchical)
                         Text(item.title)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
                     }
                     .foregroundStyle(selectedTab == item.tab ? Color.blue : Color.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 58)
+                    .frame(height: 66)
                     .background {
                         if selectedTab == item.tab {
                             Capsule(style: .continuous)
@@ -136,7 +136,7 @@ private struct RootTabBar: View {
                 .accessibilityLabel(item.title)
             }
         }
-        .padding(8)
+        .padding(9)
         .frame(maxWidth: 620)
         .background {
             Capsule(style: .continuous)
@@ -147,9 +147,9 @@ private struct RootTabBar: View {
                 }
                 .shadow(color: Color.black.opacity(0.08), radius: 22, x: 0, y: 10)
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
