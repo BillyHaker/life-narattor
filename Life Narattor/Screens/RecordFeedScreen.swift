@@ -17,6 +17,7 @@ struct RecordFeedScreen: View {
     private let onShowProductGuide: (() -> Void)?
     private let calendar = Calendar.current
     private let recordListBottomID = "record-list-bottom-anchor"
+    private let rootTabBarAvoidanceHeight: CGFloat = 112
 
     init(context: NSManagedObjectContext, aiService: AIService, onShowProductGuide: (() -> Void)? = nil) {
         self.context = context
@@ -222,7 +223,7 @@ struct RecordFeedScreen: View {
             }
         }
         .padding(.top, 4)
-        .padding(.bottom, 8)
+        .padding(.bottom, rootTabBarAvoidanceHeight)
         .background(Color(.systemGroupedBackground))
     }
 
