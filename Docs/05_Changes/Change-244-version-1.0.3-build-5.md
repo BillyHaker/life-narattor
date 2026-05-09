@@ -13,7 +13,7 @@ Bump the app version for the next App Store update.
 ## Implementation
 - Set `MARKETING_VERSION = 1.0.3`.
 - Set `CURRENT_PROJECT_VERSION = 5`.
-- Created local archive `build/archives/LifeNarrator-1.0.3-5.xcarchive`.
+- Created local archive `build/archives/LifeNarrator-1.0.3-5-20260509.xcarchive`.
 
 ## User-visible Impact
 - This release packages recent fixes, including bottom navigation spacing and conservative atomization causality handling.
