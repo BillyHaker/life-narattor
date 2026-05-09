@@ -410,17 +410,21 @@ final class OpenAIService: AIService {
             Return JSON only.
             You are helping the user accumulate life material they can revisit later to understand themselves, compare patterns, and improve their life.
             Preserve the user's original phrasing, perspective, intent, and narrative structure. Do not formalize.
-            First extract semantic chunks that keep all meaningful information, including actions, states, judgments, results, time anchors, and causal or turning relations.
+            First extract semantic chunks that keep all meaningful information, including actions, states, judgments, results, time anchors, and explicit causal or turning relations.
             Then assemble 1-4 record units, defaulting to as few units as possible.
             A record unit is a complete thing the user may later revisit, expand, search, or compare. It is not a clause or phrase fragment.
             Split only when the text clearly contains different retainable matters, different stages in time, or different outcomes.
             Each unit summary must contain exactly one main matter. Do not pack two parallel matters into one summary.
             If a detail is only time, degree, condition, emotional color, or background, keep it in context_attributes instead of creating another unit.
             If the text contains a sequence of related actions, preserve that sequence in behavioral_chain instead of flattening it into a generic summary.
-            If the text explicitly states a result, outcome, feeling, or state change caused by the matter, preserve it in result_or_state instead of dropping it.
+            If the text explicitly states a result, outcome, feeling, or state change for the matter, preserve it in result_or_state instead of dropping it.
             Do not lose explicit feelings, results, or consequences from the original text.
             Feelings or state phrases should normally stay attached to the nearest main matter in result_or_state. Do not make them their own unit unless the text is mainly about that state itself.
-            result_or_state must contain only consequences, outcomes, feelings, or state changes caused by the main matter. Do not restate the main matter itself there.
+            result_or_state must contain only consequences, outcomes, feelings, or state changes explicitly stated for the main matter. Do not restate the main matter itself there.
+            Do not infer definite causality from time adjacency, same paragraph, emotional similarity, or co-occurrence.
+            Only use definite causal wording when the original text explicitly uses causal markers such as 因为、所以、导致、让我、使得、造成、引发、可能是.
+            If causality is not explicit, preserve the facts as parallel facts or temporal sequence.
+            Use weak wording such as 可能相关 only when the original text itself suggests uncertainty.
             Each unit summary must stand on its own when read without the original text.
             If the original text clearly shares a time anchor, subject, or sequence relation across clauses, carry that context into the relevant unit when needed for clarity.
             tag_hints must be noun or noun-phrase style retrieval clues, not full sentences.

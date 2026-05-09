@@ -27,7 +27,8 @@ struct AtomizationCoordinator {
             let capture = await MainActor.run { fetchCaptureItem(id: captureID, cleanText: cleanText) }
 
             // AI calls run on background thread (not blocking UI)
-            let result = try await aiService.atomize(capture: capture, tagLibrary: tagLibrary)
+            let rawResult = try await aiService.atomize(capture: capture, tagLibrary: tagLibrary)
+            let result = AtomizationCausalityGuard.sanitize(rawResult, sourceText: cleanText)
             let drafts = result.atoms.filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
             guard !drafts.isEmpty else {
