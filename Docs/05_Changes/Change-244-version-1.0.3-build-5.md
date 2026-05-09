@@ -31,3 +31,7 @@ Bump the app version for the next App Store update.
 
 ## Rollback
 - Revert this commit to return to `1.0.2 (4)`.
+
+## Upload Follow-up
+- App Store Connect upload succeeded via `xcodebuild -exportArchive`.
+- The uploaded package is processing in App Store Connect.
