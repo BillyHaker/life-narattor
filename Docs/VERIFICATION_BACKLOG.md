@@ -1,8 +1,8 @@
 # Verification Backlog
 project: Life Narrator
-last-updated: 2026-05-02
+last-updated: 2026-05-11
 next-milestone: TBD
-pending-count: 38
+pending-count: 39
 
 ---
 
@@ -440,3 +440,14 @@ pending-count: 38
 - added: 2026-05-09
 - status: pending
 - notes: 验证路径为新建记录 `昨天睡得晚，今天醒来嗓子疼。` -> 打开记录详情 -> 拆分；通过标准是没有 `因为昨天睡得晚`、`睡得晚导致嗓子疼`。再用 `因为昨天睡得晚，所以今天很困。` 确认显式因果仍可保留。
+
+### VRF-048
+- feature: Onboarding guide navigation and parallel entry copy
+- description: Product onboarding guide should advance reliably when tapping `继续`; page labels should read `直接记录 / 助手整理 / 回看线索` instead of sequential `第一步 / 第二步 / 第三步`.
+- detection: Reset `app.hasSeenProductGuide`, launch after privacy consent, tap `继续` twice, then tap `开始记一句`; also replay from Settings and tap `先进入看看`.
+- pass criteria: Each tap changes page or enters the main record page immediately; no sequential step labels remain visible.
+- regression surface: first-run onboarding, Settings replay guide, skip path, swipe gesture between guide pages.
+- type: human-visual
+- added: 2026-05-11
+- status: pending
+- notes: Automated Debug build and full `xcodebuild test` passed on iPhone 17 Pro Max simulator. Manual first-run/reset verification remains for device/simulator UI behavior.

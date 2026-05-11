@@ -7,7 +7,7 @@ struct OnboardingGuideScreen: View {
 
     private let pages: [OnboardingGuidePage] = [
         OnboardingGuidePage(
-            eyebrow: "第一步",
+            eyebrow: "直接记录",
             title: "不用写完整日记",
             detail: "Life Narrator 不是来催你认真写作的。先把这一刻留下来：一句话、一段语音、一个模糊感受，都可以。",
             systemImage: "quote.bubble.fill",
@@ -17,7 +17,7 @@ struct OnboardingGuideScreen: View {
             example: "例如：今天开会被打断后有点烦。"
         ),
         OnboardingGuidePage(
-            eyebrow: "第二步",
+            eyebrow: "助手整理",
             title: "清楚就直接记，说不清就找助手",
             detail: "有些事一开始只是一团感觉。你可以先和助手聊几句，等它整理成草稿后，再决定是否写入记录。",
             systemImage: "bubble.left.and.bubble.right.fill",
@@ -27,7 +27,7 @@ struct OnboardingGuideScreen: View {
             example: "例如：我今天为什么一直提不起劲？"
         ),
         OnboardingGuidePage(
-            eyebrow: "第三步",
+            eyebrow: "回看线索",
             title: "回看时，再让 AI 帮你找联系",
             detail: "记录多起来后，时间线会把已经结束的时间段整理成故事线。AI 回顾则适合追问变化、重复模式和隐藏线索。",
             systemImage: "sparkles",
@@ -45,14 +45,20 @@ struct OnboardingGuideScreen: View {
             VStack(spacing: 18) {
                 header
 
-                TabView(selection: $pageIndex) {
-                    ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                        OnboardingGuideCard(page: page)
-                            .padding(.horizontal, 22)
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                OnboardingGuideCard(page: pages[pageIndex])
+                    .id(pageIndex)
+                    .padding(.horizontal, 22)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    .gesture(
+                        DragGesture(minimumDistance: 24)
+                            .onEnded { value in
+                                handleDrag(value.translation.width)
+                            }
+                    )
+                    .animation(.easeInOut(duration: 0.22), value: pageIndex)
 
                 footer
             }
@@ -79,7 +85,7 @@ struct OnboardingGuideScreen: View {
             Text("先轻轻记下来")
                 .font(.system(size: 29, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("不用一次想清楚。这个应用先帮你接住片段，之后再帮你回看它们之间的联系。")
+            Text("可以直接记，也可以先和助手聊。没有固定顺序，先把片段接住就好。")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -102,9 +108,7 @@ struct OnboardingGuideScreen: View {
             HStack(spacing: 12) {
                 if pageIndex > 0 {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            pageIndex -= 1
-                        }
+                        goPrevious()
                     } label: {
                         Text("上一步")
                             .font(.system(size: 16, weight: .semibold))
@@ -121,9 +125,7 @@ struct OnboardingGuideScreen: View {
                     if pageIndex == pages.count - 1 {
                         onFinish()
                     } else {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            pageIndex += 1
-                        }
+                        goNext()
                     }
                 } label: {
                     Text(pageIndex == pages.count - 1 ? "开始记一句" : "继续")
@@ -144,6 +146,28 @@ struct OnboardingGuideScreen: View {
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.secondary)
             .padding(.top, 1)
+        }
+    }
+
+    private func handleDrag(_ translationWidth: CGFloat) {
+        if translationWidth < -42 {
+            goNext()
+        } else if translationWidth > 42 {
+            goPrevious()
+        }
+    }
+
+    private func goNext() {
+        guard pageIndex < pages.count - 1 else { return }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            pageIndex += 1
+        }
+    }
+
+    private func goPrevious() {
+        guard pageIndex > 0 else { return }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            pageIndex -= 1
         }
     }
 }
