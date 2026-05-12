@@ -214,7 +214,7 @@ struct RecordFeedScreen: View {
                 CaptureInputBarView(
                     text: inputTextBinding,
                     mode: inputModeBinding,
-                    onSend: viewModel.addCaptureFromInput,
+                    onSend: sendCurrentInput,
                     onRecord: viewModel.startRecording,
                     showsModePicker: false,
                     textPlaceholder: inputPlaceholder,
@@ -232,6 +232,14 @@ struct RecordFeedScreen: View {
             get: { viewModel.inputText },
             set: { viewModel.inputText = $0 }
         )
+    }
+
+    private func sendCurrentInput() {
+        let hadSendableText = !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        viewModel.addCaptureFromInput()
+        if hadSendableText {
+            dismissKeyboard()
+        }
     }
 
     private var inputModeBinding: Binding<CaptureInputMode> {

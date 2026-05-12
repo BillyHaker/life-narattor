@@ -451,3 +451,14 @@ pending-count: 39
 - added: 2026-05-11
 - status: pending
 - notes: Automated Debug build and full `xcodebuild test` passed on iPhone 17 Pro Max simulator. Manual first-run/reset verification remains for device/simulator UI behavior.
+
+### VRF-049
+- feature: Keyboard dismissal after record send
+- description: After sending a non-empty text record from the record page, the keyboard should automatically collapse so the completed record is visible.
+- detection: Open record page, focus the text field, type a short record, tap send, and observe keyboard state.
+- pass criteria: Record is created, input text clears, and the keyboard closes without requiring the user to tap outside.
+- regression surface: record text send, assistant text send, empty input disabled state, bottom input bar focus handling.
+- type: human-visual
+- added: 2026-05-12
+- status: pending
+- notes: Automated Debug build and full `xcodebuild test` passed on iPhone 17 Pro Max simulator. Manual UI verification remains because keyboard dismissal is visual/interaction behavior.
